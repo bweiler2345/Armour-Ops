@@ -1,0 +1,64 @@
+@import "tailwindcss";
+
+:root {
+  --charcoal-950: #0e0e0f;
+  --charcoal-900: #151517;
+  --charcoal-800: #1d1d20;
+  --charcoal-700: #2a2a2f;
+  --charcoal-600: #3a3a41;
+  --charcoal-400: #8e8e97;
+  --charcoal-300: #b8b8bf;
+  --gold-500: #b8975a;
+  --gold-400: #c9a96e;
+  --gold-300: #dcc497;
+  --gold-900: #3a3122;
+}
+
+@theme inline {
+  --color-charcoal-950: var(--charcoal-950);
+  --color-charcoal-900: var(--charcoal-900);
+  --color-charcoal-800: var(--charcoal-800);
+  --color-charcoal-700: var(--charcoal-700);
+  --color-charcoal-600: var(--charcoal-600);
+  --color-charcoal-400: var(--charcoal-400);
+  --color-charcoal-300: var(--charcoal-300);
+  --color-gold-500: var(--gold-500);
+  --color-gold-400: var(--gold-400);
+  --color-gold-300: var(--gold-300);
+  --color-gold-900: var(--gold-900);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+html {
+  color-scheme: dark;
+  background: var(--charcoal-950);
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  background: var(--charcoal-950);
+  color: #ffffff;
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+/* Muted metallic gold used for primary actions and brand accents. */
+.gold-gradient {
+  background-image: linear-gradient(135deg, #e2cc9f 0%, #c3a265 50%, #9f7f47 100%);
+}
+
+.gold-text {
+  background-image: linear-gradient(135deg, #e6d2a8 0%, #c9a96e 50%, #a8874d 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* iPhone notch / home indicator spacing. */
+.pt-safe {
+  padding-top: env(safe-area-inset-top);
+}
+
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
