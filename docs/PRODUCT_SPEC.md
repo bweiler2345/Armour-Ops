@@ -10,7 +10,7 @@ Its purposes are to:
 2. Allow employees to claim jobs and track progress.
 3. Require verification, pictures, videos, or notes at important steps.
 4. Allow the owner to monitor job progress remotely.
-5. Separate employee preparation work from owner-controlled coating pours.
+5. Separate employee preparation work from owner-controlled coating installations.
 6. Provide a Weekly Setup section for trailer inventory checks.
 
 The interface must remain clean, visual, and touch-friendly for employees using iPhones, including employees wearing work gloves.
@@ -30,8 +30,8 @@ The owner can:
 - Add, remove, reorder, skip, reopen, or edit steps.
 - Add custom job steps.
 - Release or override a claimed job.
-- Mark the Base-Coat Pour complete.
-- Mark the Top-Coat Pour complete.
+- Mark Base Coat Installed.
+- Mark Top Coat Installed.
 - Monitor live job progress.
 - View Weekly Setup submissions and trailer shortages.
 
@@ -78,7 +78,8 @@ The owner can add a custom step and determine:
 - Instructions
 - Optional reference picture
 - Optional checklist
-- Required proof type: none, picture, video, or written entry
+- Required proof type: none, picture, or video
+- Optional structured inputs (see “Structured inputs” below)
 - Final confirmation text
 
 ## Job claiming
@@ -95,10 +96,10 @@ The owner can add a custom step and determine:
 - Available to Claim
 - Claimed
 - Initial Prep in Progress
-- Waiting for Base-Coat Pour
+- Waiting for Base-Coat Installation
 - Base Coat Installed
 - Top-Coat Prep in Progress
-- Waiting for Top-Coat Pour
+- Waiting for Top-Coat Installation
 - Top Coat Installed
 - Completion Work in Progress
 - Complete
@@ -127,6 +128,7 @@ Each workflow step can contain:
 - Ordered instructions
 - Final checklist
 - Required proof
+- Structured inputs
 - Confirmation statement
 - Completion timestamp
 - Employee who completed it
@@ -143,6 +145,14 @@ Rules:
 - Reopened steps retain their original history.
 - Progress should autosave.
 - The system should be designed for future offline saving and later synchronization, but offline functionality is not required in the first version.
+
+## Structured inputs
+
+- Required proof type: none, picture, or video.
+- Optional structured input type: none, written text, number, or single-select.
+- Each structured input can define a label, whether it is required, an optional unit, and selection choices.
+- A step can contain more than one structured input.
+- Custom steps must support these structured input types.
 
 # Stage 1: Initial Prep
 
@@ -340,7 +350,7 @@ None.
 
 ### Goal
 
-Remove all dust and debris so the floor is completely clean for pouring.
+Remove all dust and debris so the floor is completely clean for installation.
 
 ### Instructions
 
@@ -361,13 +371,13 @@ Upload one slow video showing the entire cleaned floor, including the perimeter 
 
 ### Confirmation
 
-“I confirm the entire floor has been thoroughly vacuumed and is clean for pouring.”
+“I confirm the entire floor has been thoroughly vacuumed and is clean for installation.”
 
-## Step 9: Set Up for Base-Coat Pour
+## Step 9: Set Up for Base-Coat Installation
 
 ### Goal
 
-Organize the mixing station and application tools so the pour can begin immediately.
+Organize the mixing station and application tools so the installation can begin immediately.
 
 ### Choose the setup location
 
@@ -405,7 +415,7 @@ Organize the mixing station and application tools so the pour can begin immediat
 - Setup location protects the floor from weather and airborne debris.
 - Mixing station is completely organized.
 - All application tools and roller naps are clean.
-- Inside tools are positioned without blocking the pour path.
+- Inside tools are positioned without blocking the installation path.
 - Every drain is completely taped off and protected.
 
 ### Required proof
@@ -416,17 +426,17 @@ Organize the mixing station and application tools so the pour can begin immediat
 
 ### Confirmation
 
-“I confirm the mixing station and application tools are ready, and every drain is taped off for the base-coat pour.”
+“I confirm the mixing station and application tools are ready, and every drain is taped off for the base-coat installation.”
 
-# Owner Milestone: Base-Coat Pour
+# Owner Milestone: Base-Coat Installation
 
-The Base-Coat Pour is currently the owner’s responsibility and must not contain employee pour instructions.
+The Base-Coat Installation is currently the owner’s responsibility and must not contain employee installation instructions.
 
 When Initial Prep is complete:
 
-1. Change the status to “Waiting for Base-Coat Pour.”
+1. Change the status to “Waiting for Base-Coat Installation.”
 2. Notify the owner.
-3. Only the owner can mark “Base Coat Poured.”
+3. Only the owner can select “Mark Base Coat Installed.”
 4. Record the owner and timestamp.
 5. Unlock Top-Coat Prep.
 
@@ -443,7 +453,7 @@ Collect the loose flake and return it to the correct boxes.
 1. Walk the floor in clean footwear.
 2. Use the leaf blower to move loose flake into manageable piles.
 3. Collect the flake with the dustpan.
-4. Return it to the correct boxes, filling partially full boxes from the pour before starting an empty box.
+4. Return it to the correct boxes, filling partially full boxes from the installation before starting an empty box.
 
 ### Final check
 
@@ -452,10 +462,12 @@ Collect the loose flake and return it to the correct boxes.
 - Partially full boxes were filled first.
 - No large piles remain.
 
-### Required entry
+### Required structured inputs
 
-- Full boxes recovered: numeric entry.
-- Additional flake: select None, ¼ box, ½ box, or ¾ box.
+This step uses two required structured inputs:
+
+- Full boxes recovered: number.
+- Additional flake: single-select with None, ¼ box, ½ box, or ¾ box.
 
 ### Required proof
 
@@ -524,7 +536,7 @@ None.
 
 ### Goal
 
-Remove all loose flake and debris before the top-coat pour.
+Remove all loose flake and debris before the top-coat installation.
 
 ### Instructions
 
@@ -546,11 +558,11 @@ Upload one slow video showing the entire clean floor, including the joints and p
 
 “I confirm the entire floor has been thoroughly vacuumed and is ready for the next step.”
 
-## Step 5: Set Up for Top-Coat Pour
+## Step 5: Set Up for Top-Coat Installation
 
 ### Goal
 
-Organize the mixing station and application tools so the top-coat pour can begin immediately.
+Organize the mixing station and application tools so the top-coat installation can begin immediately.
 
 ### Choose the setup location
 
@@ -583,7 +595,7 @@ Organize the mixing station and application tools so the top-coat pour can begin
 - Setup location protects the floor from weather and airborne debris.
 - Mixing station is completely organized.
 - All application tools and roller naps are clean.
-- Inside tools are positioned without blocking the pour path.
+- Inside tools are positioned without blocking the installation path.
 
 ### Required proof
 
@@ -592,17 +604,17 @@ Organize the mixing station and application tools so the top-coat pour can begin
 
 ### Confirmation
 
-“I confirm the mixing station and application tools are clean, organized, and ready for the top-coat pour.”
+“I confirm the mixing station and application tools are clean, organized, and ready for the top-coat installation.”
 
-# Owner Milestone: Top-Coat Pour
+# Owner Milestone: Top-Coat Installation
 
-The Top-Coat Pour is currently the owner’s responsibility and must not contain employee pour instructions.
+The Top-Coat Installation is currently the owner’s responsibility and must not contain employee installation instructions.
 
 When Top-Coat Prep is complete:
 
-1. Change the status to “Waiting for Top-Coat Pour.”
+1. Change the status to “Waiting for Top-Coat Installation.”
 2. Notify the owner.
-3. Only the owner can mark “Top Coat Poured.”
+3. Only the owner can select “Mark Top Coat Installed.”
 4. Record the owner and timestamp.
 5. Unlock Completion Work.
 
