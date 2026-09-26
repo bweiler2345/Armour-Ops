@@ -453,7 +453,7 @@ Collect the loose flake and return it to the correct boxes.
 1. Walk the floor in clean footwear.
 2. Use the leaf blower to move loose flake into manageable piles.
 3. Collect the flake with the dustpan.
-4. Return it to the correct boxes, filling partially full boxes from the installation before starting an empty box.
+4. Return the flake to the correct boxes, filling any partially full boxes left from the flake broadcast before starting an empty box.
 
 ### Final check
 
