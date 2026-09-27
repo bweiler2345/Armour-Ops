@@ -93,6 +93,7 @@ Defaults:
 
 - Caulking is selected by default.
 - Baseboard is not selected by default.
+- Allow Employees to Join is on by default. The owner can turn it off for an individual job.
 - New jobs begin as Scheduled.
 
 The owner can add a custom step and determine:
@@ -110,6 +111,7 @@ The owner can add a custom step and determine:
 ## Making jobs available
 
 - New jobs begin as Scheduled.
+- Scheduled jobs are visible to employees, read-only, until the owner selects Make Available.
 - The owner manually selects Make Available to change a job to Available to Claim.
 - Employees cannot claim or join a Scheduled job.
 - The owner can return an unassigned job to Scheduled.
@@ -166,6 +168,7 @@ The employee Jobs screen contains:
 - My Current Jobs: every job the employee is assigned to that is not yet complete.
 - Other Active Jobs: jobs in progress that the employee is not assigned to, shown read-only, with a Join button when joining is allowed.
 - Available Jobs: jobs that can be claimed.
+- Scheduled Jobs: jobs the owner has not made available yet, shown read-only.
 - Completed Jobs.
 
 ## General step behavior
@@ -250,6 +253,15 @@ Each email includes:
 - Link to the job
 
 Text message and phone push notifications are future features.
+
+## Hosting and backups
+
+- Armour Ops is hosted on Cloudflare Workers Free using the OpenNext adapter. Vercel and Cloudflare Pages are not used.
+- Full Next.js compatibility on Cloudflare Workers is tested before production deployment.
+- The hosting plan is upgraded only if actual usage requires it.
+- Supabase Free provides authentication and the database.
+- Employee-uploaded pictures and videos are stored in a private Cloudflare R2 bucket.
+- The Supabase database is exported automatically every week to the private Cloudflare R2 bucket. The newest 12 weekly backups are kept, and older backups are deleted automatically.
 
 # Stage 1: Initial Prep
 

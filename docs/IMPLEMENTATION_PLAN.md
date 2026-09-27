@@ -20,6 +20,8 @@ No application code, dependencies, external services, or UI have been changed as
 12. [Deferred from version one](#9-deferred-from-version-one)
 13. [Decisions still required](#10-decisions-still-required)
 
+Also: [Database backups](#database-backups) (in section 6).
+
 ---
 
 ## Starting point
@@ -36,7 +38,7 @@ The current repository is a visual shell only:
 Gaps between the shell and the spec that later phases will close:
 
 - Mock `JobStatus` values (`In Progress`, `Scheduled`, `Open`) do not match the spec's statuses.
-- The Jobs screen has "My Active Job" and "Available Jobs". The spec requires My Current Jobs, Other Active Jobs, Available Jobs, and Completed Jobs.
+- The Jobs screen has "My Active Job" and "Available Jobs". The spec requires My Current Jobs, Other Active Jobs, Available Jobs, Scheduled Jobs, and Completed Jobs.
 - `JobCard` does not yet show the lead and assigned employees, current step, or last activity time.
 - Mock jobs split address into `address` and `city` and include a `projectType` field the spec does not define.
 - The Account screen shows Crew and Employee ID, which the spec does not require. It will show name and role only.
@@ -48,10 +50,12 @@ The existing visual components will be kept and fed real data rather than rewrit
 
 | Concern | Service | Notes |
 | --- | --- | --- |
-| Application | Existing Next.js app | Deployed later. The hosting plan is an open decision (see [Decisions](#10-decisions-still-required)). |
+| Application hosting | Cloudflare Workers Free, using the OpenNext adapter (`@opennextjs/cloudflare`) | Vercel and Cloudflare Pages are not used. Full Next.js compatibility is tested before production deployment. The plan is upgraded only if actual usage requires it. |
 | Database, auth, security rules, app data | Supabase Free | Postgres, Supabase Auth (email and password), Row Level Security. Also stores all media metadata and authorization relationships. |
 | Employee pictures and videos | Cloudflare R2 (private bucket) | Supabase Storage is **not** used for job media. |
-| Invitation and notification email | A free-tier transactional email provider | Selected in Phase 1, because Supabase's built-in email service is not suitable for sending invitations to employees. |
+| Database backups | Weekly export to the private R2 bucket | Newest 12 weekly backups kept, older ones deleted automatically. See [Database backups](#database-backups). |
+| Scheduled jobs | Cloudflare Workers Cron Triggers | Media retention deletion, stale upload cleanup, and email retry. |
+| Invitation and notification email | A free-tier transactional email provider | Selected in Phase 1B, because Supabase's built-in email service is not suitable for sending invitations to employees. |
 
 The goal is to stay free or extremely inexpensive at the current company size.
 
@@ -59,6 +63,7 @@ The goal is to stay free or extremely inexpensive at the current company size.
 
 - Supabase Free: a small database size cap (500 MB), a pause after a week with no activity (daily use prevents this), and no automatic backups. The database will hold text and metadata only, so it should stay well under the cap.
 - Cloudflare R2: 10 GB of storage per month free, no charge for downloads (egress), then about $0.015 per GB per month.
+- Cloudflare Workers Free: a daily request allowance, a small CPU-time limit per request, and a compressed size limit for the deployed app. Server rendering and the app's bundle size must fit within these. The hosting compatibility check measures both, and the Workers Paid plan is the upgrade path only if real usage exceeds them.
 - **Rough media estimate:** each job has five required videos (four in Initial Prep, one in Top-Coat Prep). At about 60 MB per minute for 1080p/30 fps Most Compatible video and one to two minutes each, a job produces roughly 0.35–0.65 GB including pictures. At 100 jobs a year with five-year retention, storage would grow by about 35–65 GB a year, roughly $0.50–$1 more per month each year. This is an estimate for planning, not a quote.
 
 ## Technology and framework notes
@@ -71,10 +76,11 @@ Planned additions, installed only in the phase that needs them:
 | `server-only` | 1 | Makes the build fail if a module holding secrets is imported into browser code |
 | `zod` | 1 | Server-side validation of every form and action input |
 | Supabase CLI (dev dependency) | 1 | Local database, migrations, type generation, database tests |
-| `vitest` | 2 | Unit tests for pure workflow and inventory logic |
-| `@playwright/test` | 1 | End-to-end tests with iPhone viewport emulation |
+| `vitest` | 1 | Unit tests for pure logic (sign-in validation, redirects, workflow, inventory) |
+| `@playwright/test` | 1B | End-to-end tests with iPhone viewport emulation, once a Supabase project with test accounts exists |
+| `@opennextjs/cloudflare`, `wrangler` (dev dependency) | Hosting check | Build and preview the app on Cloudflare Workers |
 | `@aws-sdk/client-s3`, `@aws-sdk/s3-request-presigner` | 6 | Server-side R2 access and presigned URLs (R2 is S3-compatible) |
-| Email provider SDK (chosen in Phase 1) | 1 | Invitation email (through Supabase custom SMTP) and notification email |
+| Email provider SDK (chosen in Phase 1B) | 1B | Invitation email (through Supabase custom SMTP) and notification email |
 
 Supabase Storage and browser-side upload libraries that need storage credentials are not used.
 
@@ -93,12 +99,14 @@ Next.js 16 conventions that affect this plan (from `node_modules/next/dist/docs/
 
 | Secret | Where it lives | Never |
 | --- | --- | --- |
-| Supabase URL and anon (public) key | `.env.local`, later the hosting provider's environment settings | Safe for the browser by design, protected by RLS |
+| Supabase URL and anon (public) key | `.env.local`, later Cloudflare Workers environment variables | Safe for the browser by design, protected by RLS |
 | Supabase service-role key | Server environment only, read only by `src/lib/supabase/admin.ts` (`server-only`) | Never prefixed `NEXT_PUBLIC_`, never in the repository |
 | R2 account ID, access key ID, secret access key, bucket name | Server environment only, read only by `src/lib/r2.ts` (`server-only`) | Never in browser code or the repository |
 | Email provider API key and SMTP credentials | Server environment and the Supabase dashboard's SMTP settings | Never in the repository |
 
-`.env.example` lists variable names with empty values. No real names, email addresses, or credentials appear in the repository, documentation, mock data, migrations, or seed files.
+Server secrets for the deployed app are stored as Cloudflare Workers secrets. Secrets for the weekly backup job are stored as encrypted GitHub Actions secrets. Local Workers preview files (`.dev.vars`) are added to `.gitignore` when hosting is set up.
+
+`.env.example` lists variable names with placeholder values only. No real names, email addresses, or credentials appear in the repository, documentation, mock data, migrations, or seed files.
 
 ---
 
@@ -115,7 +123,7 @@ Next.js 16 conventions that affect this plan (from `node_modules/next/dist/docs/
 
 - Supabase Auth with email and password, using cookie-based sessions via `@supabase/ssr`.
 - Public sign-up is turned off in Supabase. Every employee account is created by the owner.
-- A Supabase **custom access token hook** copies `profiles.role` into the JWT so `proxy.ts` can make optimistic role redirects without a database call. The database remains authoritative.
+- Roles are read from `profiles` in the database by the DAL. No JWT custom claims are needed. (A Supabase custom access token hook could later copy the role into the JWT for optimistic redirects in `proxy.ts`, but it is not required.)
 - Supabase Auth sends invitation email through the chosen provider using Supabase's custom SMTP setting.
 
 ### First owner account (bootstrap)
@@ -136,17 +144,17 @@ Owner-only screen at `/owner/team`. All account administration runs in Server Ac
 | Add an employee (name and email) | Owner enters name, email, and role. The server calls the Supabase admin invite API. A trigger creates the `profiles` row. `invited_at` and `invitation_last_sent_at` are recorded. |
 | Send invitation | The invitation email links to `/auth/confirm`, which verifies the one-time token and signs the user in. It then sends them to `/auth/set-password` to choose a password. |
 | See whether it was accepted | Setting the password records `invitation_accepted_at`. The Team list shows Invited, Accepted, or Deactivated. |
-| Resend an expired invitation | The server re-issues the invitation with the admin API and updates `invitation_last_sent_at`. The exact admin call (a repeat invite or a generated invite link sent through the email provider) is confirmed during Phase 1. |
+| Resend an expired invitation | The server re-issues the invitation with the admin API and updates `invitation_last_sent_at`. The exact admin call (a repeat invite or a generated invite link sent through the email provider) is confirmed during Phase 1B. |
 | Deactivate | Sets `profiles.active = false` and bans the auth user through the admin API, which blocks sign-in and token refresh. DAL and RLS both check `active`, so access stops right away. Past activity is untouched. |
 | Reactivate | Sets `active = true` and lifts the ban. |
 | View role | Shown on each row. |
 | Change role | Updates `profiles.role`. The last active owner cannot be demoted or deactivated. |
 
-The invitation link lifetime is a Supabase setting. A proposed value of 24 hours will be set in Phase 1.
+The invitation link lifetime is a Supabase setting. A proposed value of 24 hours will be set in Phase 1B.
 
 ### Route protection (three layers)
 
-1. **`src/proxy.ts` (optimistic).** It refreshes the session, redirects signed-out users to `/sign-in`, and redirects employees away from `/owner/*`. It runs on all routes except static assets and the `/auth/*` callback routes.
+1. **`src/proxy.ts` (optimistic).** It refreshes the session and redirects signed-out users to `/sign-in`. It runs on all routes except static assets and the `/auth/*` callback routes. It does not make role decisions.
 2. **DAL (authoritative in app code).** `requireUser()` returns the signed-in, active user and profile or redirects to `/sign-in`. `requireOwner()` also verifies `role = 'owner'` from the database, not the JWT. Every page, Server Action, and Route Handler calls one of these.
 3. **Row Level Security (authoritative in the database).** Even a bug in app code cannot expose or change rows the user is not permitted to access.
 
@@ -163,7 +171,7 @@ RLS is enabled on every table. `security definer` helper functions (with `search
 | Data | Owner | Employee |
 | --- | --- | --- |
 | Profiles | All | Names and roles of active users (needed to show job teams). Email and invitation fields only for their own row. |
-| Jobs | All | Every job except those in `scheduled` status (see decision 2) |
+| Jobs | All | All jobs, including Scheduled jobs (read-only until made available) |
 | Job assignments | All | For every job they can read |
 | Job stages, steps, blocks, items, inputs, proof requirements | All | For every job they can read |
 | Step attempts, responses, completion items | All | For every job they can read |
@@ -270,7 +278,7 @@ Templates are seeded from `PRODUCT_SPEC.md` by a migration and versioned. Jobs n
 #### Jobs and per-job snapshots
 
 **`jobs`**
-`id`, `job_number` (human-readable, sequence-backed), `client_name`, `address`, `square_feet int`, `flake_color`, `scheduled_date date`, `general_notes`, `caulking_required bool default true`, `baseboard_required bool default false`, `allow_employees_to_join bool` (default per decision 3), `status job_status default 'scheduled'`, `workflow_template_id` (version copied, reference only), `made_available_at`, `claimed_at`, `last_activity_at`, `completed_at`, `completed_by`, `media_delete_after` (set to `completed_at + 5 years` when the owner completes the job), `created_by`, `created_at`, `updated_at`.
+`id`, `job_number` (human-readable, sequence-backed), `client_name`, `address`, `square_feet int`, `flake_color`, `scheduled_date date`, `general_notes`, `caulking_required bool default true`, `baseboard_required bool default false`, `allow_employees_to_join bool default true`, `status job_status default 'scheduled'`, `workflow_template_id` (version copied, reference only), `made_available_at`, `claimed_at`, `last_activity_at`, `completed_at`, `completed_by`, `media_delete_after` (set to `completed_at + 5 years` when the owner completes the job), `created_by`, `created_at`, `updated_at`.
 
 **`job_assignments`** (the job team)
 `id`, `job_id` FK, `employee_id` FK profiles, `role assignment_role`, `method assignment_method`, `assigned_at default now()`, `assigned_by` (the employee themselves for `claimed` and `joined`, otherwise the owner), `last_activity_at`, `ended_at` (nullable), `ended_by`, `end_reason assignment_end_reason`.
@@ -419,8 +427,8 @@ All routes are under `src/app`. Route groups keep layouts separate without affec
 
 | Route | Screen |
 | --- | --- |
-| `/jobs` | **Employee Jobs**, in four sections: **My Current Jobs** (every job they are assigned to that is not complete), **Other Active Jobs** (in-progress jobs they are not on, read-only, with **Join** when allowed), **Available Jobs** (with **Claim Job**), and **Completed Jobs**. Job cards show client name, address, square footage, flake color, scheduled date, lead and assigned employees, status, current step, progress, and last activity time. |
-| `/jobs/[jobId]` | **Job details and stage overview.** Job information, general notes, the team (lead marked), and each stage with per-step state. Assigned employees get **Continue**. Unassigned employees see the same content read-only with **Claim Job**, **Join Job**, or "Ask the owner to add you", depending on status and the join setting. Owner milestones appear as waiting or installed, with no installation instructions. Completion Work shows the applicable checkboxes to assigned employees. |
+| `/jobs` | **Employee Jobs**, in five sections: **My Current Jobs** (every job they are assigned to that is not complete), **Other Active Jobs** (in-progress jobs they are not on, read-only, with **Join** when allowed), **Available Jobs** (with **Claim Job**), **Scheduled Jobs** (read-only, no Claim or Join), and **Completed Jobs**. Job cards show client name, address, square footage, flake color, scheduled date, lead and assigned employees, status, current step, progress, and last activity time. |
+| `/jobs/[jobId]` | **Job details and stage overview.** Job information, general notes, the team (lead marked), and each stage with per-step state. Assigned employees get **Continue**. Unassigned employees see the same content read-only with **Claim Job**, **Join Job**, or "Ask the owner to add you", depending on status and the join setting. Scheduled jobs show "Not available yet" with no Claim or Join. Owner milestones appear as waiting or installed, with no installation instructions. Completion Work shows the applicable checkboxes to assigned employees. |
 | `/jobs/[jobId]/steps/[stepId]` | **Step details.** Title, goal, reference image, instructions, reference lists, Final check, structured inputs, proof slots with upload progress, employee notes, the confirmation statement, and **Complete Step**. Shows "Being edited by [name]" when another employee holds the edit. Completed steps open read-only with who completed them, when, and their evidence. Unassigned employees always get the read-only view. |
 | `/weekly-setup` | **Weekly Setup.** Both trailer cards with their latest status and shortage count. |
 | `/weekly-setup/[trailerId]` | **Trailer inventory.** The shared list grouped by category (see [Weekly Setup](#7-weekly-setup)). |
@@ -433,7 +441,7 @@ Claiming and joining are actions on `/jobs` and `/jobs/[jobId]`, not separate pa
 | --- | --- |
 | `/owner` | **Owner dashboard.** Jobs grouped by Scheduled, Available, In progress, Waiting for installation, Ready for owner review, and Completed. Unread notifications, jobs with no team assigned, and trailer shortages. |
 | `/owner/notifications` | In-app notification history, with read and unread state and email delivery status. |
-| `/owner/jobs/new` | **Owner job creation.** All job fields, the Caulking toggle (on by default), the Baseboard toggle (off by default), the Allow Employees to Join setting, and optional custom steps. New jobs are saved as Scheduled. |
+| `/owner/jobs/new` | **Owner job creation.** All job fields, the Caulking toggle (on by default), the Baseboard toggle (off by default), the Allow Employees to Join setting (on by default), and optional custom steps. New jobs are saved as Scheduled. |
 | `/owner/jobs/[jobId]` | **Owner progress monitoring and review.** Status, team, current step, progress, activity timeline, every step with completion time and person, evidence viewer, and completion items. Controls: **Make Available**, **Return to Scheduled**, **Allow Employees to Join**, add, remove, and change lead, **Mark Base Coat Installed** (only when Waiting for Base-Coat Installation), **Mark Top Coat Installed** (only when Waiting for Top-Coat Installation), and **Mark Job Complete** (only when the job is ready; see below). |
 | `/owner/jobs/[jobId]/edit` | **Owner job editing.** Job details and toggles, plus the step editor: add a custom step, remove, reorder, skip, and edit steps for this job only. |
 | `/owner/jobs/[jobId]/steps/new` | **Custom step editor.** Step name, stage, position, instructions, optional reference picture, optional checklist, required proof type (none, picture, or video), structured inputs, and final confirmation text. The same form edits existing steps. |
@@ -629,7 +637,7 @@ The approved limits and formats are in the spec's [Pictures and videos](./PRODUC
 ### Five-year retention and scheduled deletion
 
 - When the owner marks a job Complete, `media_delete_after` is set to five years after `completed_at`.
-- A scheduled deletion job (a protected Route Handler run daily by the hosting provider's scheduler once deployed) finds media on jobs past `media_delete_after`, deletes the R2 objects, and marks the rows `deleted` with `deleted_at`. The metadata rows and activity history stay in Postgres.
+- A scheduled deletion job (run daily by a Cloudflare Workers Cron Trigger once deployed) finds media on jobs past `media_delete_after`, deletes the R2 objects, and marks the rows `deleted` with `deleted_at`. The metadata rows and activity history stay in Postgres.
 - R2's own lifecycle rules are not used for the five-year deletion, because they count from upload time rather than job completion.
 - Jobs that are not complete keep their media until they are completed.
 - Archive and export before deletion is a future feature.
@@ -643,10 +651,19 @@ The approved limits and formats are in the spec's [Pictures and videos](./PRODUC
   - Top-Coat Prep complete, job Waiting for Top-Coat Installation.
 - **Who:** every active owner account.
 - **In-app:** `complete_step` inserts a `notifications` row per owner in the same transaction as the status change, so a notification can never be lost. The owner dashboard shows unread notifications, and `/owner/notifications` keeps the full history.
-- **Email:** after the step completion commits, the Server Action uses `after()` to send each pending notification email through the provider, then records `sent` or `failed`. Failed emails are retried by a scheduled job once deployed, and on the next owner page load before then.
+- **Email:** after the step completion commits, the Server Action uses `after()` to send each pending notification email through the provider, then records `sent` or `failed`. Failed emails are retried by a Workers Cron Trigger once deployed, and on the next owner page load before then.
 - **Email contents:** client name, address, completed stage, the employee who completed the stage's final step, the completion time (from the database, shown in the company's local time zone), and a link to the job (built from an `APP_URL` environment variable).
-- **Provider:** a free-tier transactional email provider selected in Phase 1, also used as Supabase's custom SMTP for invitations. Credentials live only in server environment settings and the Supabase dashboard.
+- **Provider:** a free-tier transactional email provider selected in Phase 1B, also used as Supabase's custom SMTP for invitations. Credentials live only in server environment settings and the Supabase dashboard.
 - Text message and phone push notifications are future features.
+
+### Database backups
+
+- **What:** a weekly logical export (`pg_dump`) of the Supabase database, compressed, uploaded to the private R2 bucket under a `backups/` prefix. Media files are already in R2 and are not duplicated.
+- **Where it runs:** a scheduled GitHub Actions workflow, because `pg_dump` cannot run inside a Cloudflare Worker. The database connection string and a separate R2 token scoped to the bucket are stored as encrypted GitHub Actions secrets, never in the repository.
+- **Retention:** after each successful upload, the workflow lists the objects under `backups/` and deletes all but the newest 12.
+- **Privacy:** the repository is public, so workflow logs are public. The workflow prints only success, failure, and object counts, never data, connection strings, or object contents.
+- **Failure handling:** a failed run leaves the existing backups untouched and is visible as a failed workflow run. Old backups are only deleted after a new one uploads successfully.
+- **Restore:** a documented restore procedure, tested once into a scratch database during Phase 11.
 
 ---
 
@@ -684,12 +701,25 @@ The approved limits and formats are in the spec's [Pictures and videos](./PRODUC
 
 Each phase ends with lint, a production build, its listed tests, and a check on a real iPhone where UI changed. Nothing moves forward until the confirmation items are met. Each phase is a separate reviewable change.
 
-### Phase 1: Supabase foundation, sign-in, Team screen, and route protection
+### Phase 1: Sign-in and route protection
 
-- **Features:** Supabase Free project connection (plus local Supabase via the CLI) and environment variables. `profiles` with RLS, the role-in-JWT hook, and the documented first-owner bootstrap with placeholders. Email and password `/sign-in` with public sign-up disabled. `src/proxy.ts` and the DAL. A real Account screen and Sign Out. Owner and employee route groups with a placeholder owner dashboard. Selection of the free-tier email provider and its setup as Supabase custom SMTP. The basic owner-only **Team screen**: add an employee (name, email, role), send and resend invitations, invitation status, deactivate and reactivate, and change role. `/auth/confirm` and `/auth/set-password`.
-- **Files or areas:** `package.json`, `supabase/migrations`, `src/proxy.ts`, `src/lib/supabase/*`, `src/lib/dal.ts`, `src/lib/actions/team.ts`, `src/app/sign-in`, `src/app/auth/*`, `src/app/account`, `src/app/owner/team`, layouts, `.env.example`, README.
-- **Testing:** Database tests: users can read only permitted profile fields; employees cannot change roles. Playwright: signed-out redirect, employees blocked from `/owner`, sign-out. A search of the production build output to confirm no service-role key appears in browser bundles. Manual test: invite a test address, accept on an iPhone, set a password, sign in; resend; deactivate (sign-in fails) and reactivate.
-- **Confirm before moving on:** The owner can invite, deactivate, and reactivate test accounts. Nothing loads while signed out. No real personal information has been committed.
+- **Features:** Supabase Free connection through environment variables. A `profiles` migration with the `app_role` enum, RLS, the `is_owner()` and `is_active_user()` helpers, and a trigger that gives each new auth user an `employee` profile. The documented first-owner bootstrap with placeholders. Email and password `/sign-in` with show and hide password, a loading state, and clear error messages, with no sign-up link. `src/proxy.ts` (session refresh, signed-out redirect) and the DAL (`requireUser()`, `requireOwner()`). A real Account screen and Sign Out. A placeholder owner-only `/owner` page. `.env.example` with placeholders. No invitations, password recovery, or email yet.
+- **Files or areas:** `package.json`, `supabase/migrations`, `src/proxy.ts`, `src/lib/supabase/*`, `src/lib/dal.ts`, `src/lib/auth/*`, `src/app/sign-in`, `src/app/account`, `src/app/owner`, layouts, `.env.example`, README.
+- **Testing:** Unit tests for sign-in validation, error messages, and safe redirect handling. Lint, type check, and production build. Once a Supabase project exists: manual checks that signed-out users are redirected, an employee cannot open `/owner` or run owner actions, deactivated users are signed out, and sign-out works on an iPhone.
+- **Confirm before moving on:** Nothing loads while signed out. Employees cannot reach owner pages. No real personal information or credentials have been committed.
+
+### Phase 1B: Team screen and invitations
+
+- **Features:** Selection of the free-tier email provider and its setup as Supabase custom SMTP. The owner-only **Team screen**: add an employee (name, email, role), send and resend invitations, invitation status, deactivate and reactivate, and change role. `/auth/confirm` and `/auth/set-password`. The service-role client in `src/lib/supabase/admin.ts`. Playwright end-to-end setup.
+- **Files or areas:** `supabase/migrations` (invitation columns), `src/lib/supabase/admin.ts`, `src/lib/actions/team.ts`, `src/app/auth/*`, `src/app/owner/team`.
+- **Testing:** Database tests: employees cannot change roles or read other users' email. A search of the production build output to confirm no service-role key appears in browser bundles. Manual test: invite a test address, accept on an iPhone, set a password, sign in; resend; deactivate (sign-in fails) and reactivate.
+- **Confirm before moving on:** The owner can invite, deactivate, and reactivate test accounts.
+
+### Hosting compatibility check (early, before Phase 2 feature work grows)
+
+- **Features:** Add `@opennextjs/cloudflare` and `wrangler`, build the app for Cloudflare Workers, and deploy a private preview to a Workers Free account. Add `.dev.vars` to `.gitignore`.
+- **Testing:** Sign-in, `proxy.ts` session refresh, Server Actions, redirects, and cookies work on Workers. Measure the compressed Worker size and per-request CPU time against Workers Free limits.
+- **Confirm before moving on:** The app runs correctly on Workers Free, or the specific incompatibility is reported to the owner before more features are built on top of it.
 
 ### Phase 2: Workflow templates and seed of the approved workflow
 
@@ -700,9 +730,9 @@ Each phase ends with lint, a production build, its listed tests, and a check on 
 
 ### Phase 3: Jobs, snapshots, making jobs available, and real job cards
 
-- **Features:** `jobs`, snapshot tables, and `create_job`. Owner job creation with default toggles and the join setting. Owner editing of job details. Make Available and Return to Scheduled. Employee `/jobs` with its four sections, and a read-only `/jobs/[jobId]`. JobCard with team, current step, and last activity. The `job_progress` view. Mock data removed from the Jobs screens.
+- **Features:** `jobs`, snapshot tables, and `create_job`. Owner job creation with default toggles and the join setting. Owner editing of job details. Make Available and Return to Scheduled. Employee `/jobs` with its five sections, and a read-only `/jobs/[jobId]`. JobCard with team, current step, and last activity. The `job_progress` view. Mock data removed from the Jobs screens.
 - **Files or areas:** migrations, `src/lib/actions/jobs.ts`, `src/app/owner/jobs/*`, `src/app/(employee)/jobs/*`, `src/components/JobCard.tsx`, `src/lib/mock-data.ts`.
-- **Testing:** Database tests: changing a template after job creation does not change the job; employees cannot see Scheduled jobs; employees cannot write to any job table. Unit tests for status labels, progress, and section grouping.
+- **Testing:** Database tests: changing a template after job creation does not change the job; employees can see Scheduled jobs but cannot claim or join them; employees cannot write to any job table. Unit tests for status labels, progress, and section grouping.
 - **Confirm before moving on:** The owner can create and release a job on a phone and a desktop, and job cards show every required field.
 
 ### Phase 4: Job teams, claiming, joining, and activity history
@@ -728,7 +758,7 @@ Each phase ends with lint, a production build, its listed tests, and a check on 
 
 ### Phase 7: Installation milestones, notifications, completion work, and owner completion
 
-- **Features:** `mark_milestone_installed`. In-app notifications with history, and email notifications with the approved contents through the provider chosen in Phase 1. Completion items checkable by any assigned employee. The owner review view, "Ready for owner review" grouping, and owner-only `mark_job_complete`, which sets `media_delete_after`.
+- **Features:** `mark_milestone_installed`. In-app notifications with history, and email notifications with the approved contents through the provider chosen in Phase 1B. Completion items checkable by any assigned employee. The owner review view, "Ready for owner review" grouping, and owner-only `mark_job_complete`, which sets `media_delete_after`.
 - **Files or areas:** migrations, `src/lib/actions/owner.ts`, `src/lib/email.ts`, `src/app/owner/notifications`, owner job page, employee job page.
 - **Testing:** Database tests: employees cannot mark milestones or complete jobs; milestones cannot be marked from the wrong status; unassigned employees cannot check completion items. A test that each waiting status creates one notification per owner and one email containing the six approved fields. A complete run of a test job from creation to Complete covering all four caulking and baseboard combinations.
 - **Confirm before moving on:** The owner has received both email notifications on a real job and completed it from the review screen.
@@ -758,8 +788,8 @@ This phase is independent of the job workflow and can move earlier if the owner 
 
 ### Phase 11: Hardening, scheduled jobs, and deployment (only when approved)
 
-- **Features:** Remove the "Preview" badge and remaining mock data. Error and loading states. Add-to-home-screen icon. Production Supabase and R2 settings. Hosting setup under the approved plan. Scheduled jobs: daily five-year media deletion, stale upload cleanup, and email retry, each a protected Route Handler that requires a secret. A database backup approach. The Next.js production checklist.
-- **Testing:** Full end-to-end suite against a preview deployment. The scheduled deletion job run against test data with a shortened date. A real-device pass with every role.
+- **Features:** Remove the "Preview" badge and remaining mock data. Error and loading states. Add-to-home-screen icon. Production Supabase and R2 settings. Production deployment on Cloudflare Workers Free with OpenNext. Workers Cron Triggers for daily five-year media deletion, stale upload cleanup, and email retry. The weekly database backup workflow with 12-backup retention. The Next.js production checklist.
+- **Testing:** A full Next.js compatibility pass on Workers (every route, Server Action, redirect, `after()`, and Realtime). Full end-to-end suite against the Workers preview. The scheduled deletion job run against test data with a shortened date. A manual backup run, a test restore into a scratch database, and a check that the 13th backup deletes the oldest. A real-device pass with every role.
 - **Confirm before moving on:** The owner approves going live.
 
 ---
@@ -779,13 +809,8 @@ These are in the spec's Future functionality list and are **not** built in versi
 
 ## 10. Decisions still required
 
-Only the following need owner input. Each includes a recommendation.
-
-1. **Hosting plan for deployment (needed before Phase 11).** Vercel's free Hobby plan is limited to personal, non-commercial use under Vercel's terms (recheck at deployment time), and Armour Ops is a business app. Options: Vercel Pro (a monthly fee per user), or a free option that runs Next.js on Cloudflare (which would sit next to R2) and would need its own compatibility check. *Recommendation:* decide before Phase 11. Evaluate the Cloudflare option first for cost, and fall back to Vercel Pro if it causes compatibility problems.
-2. **Can employees see Scheduled jobs?** The approved Jobs screen sections (My Current, Other Active, Available, Completed) do not include Scheduled jobs, so this plan hides Scheduled jobs from employees. *Recommendation:* keep them hidden until the owner selects Make Available.
-3. **Default for "Allow Employees to Join" on new jobs.** On or off when a job is created? The owner can change it per job either way. *Recommendation:* off, so the owner controls team size unless they choose otherwise.
-4. **Database backups.** Supabase Free does not include automatic backups. Is that acceptable for version one, or should a scheduled weekly export to the private R2 bucket be added in Phase 11? *Recommendation:* add the weekly export; it costs almost nothing.
+There are no open owner decisions. All earlier decisions are recorded in `PRODUCT_SPEC.md` and this plan. New questions will be added here only if they come up during a phase.
 
 ### Setup information needed (not decisions)
 
-Before the relevant phases, and never committed to the repository: the owner's sign-in email and each employee's name and email (entered through the Supabase dashboard and Team screen in Phase 1), the trailers' names if different from "Trailer 1" and "Trailer 2" (Phase 10), and any reference images for steps (Phase 6).
+Before the relevant phases, and never committed to the repository: the owner's sign-in email (Phase 1, entered in the Supabase dashboard), each employee's name and email (Phase 1B, entered on the Team screen), the trailers' names if different from "Trailer 1" and "Trailer 2" (Phase 10), and any reference images for steps (Phase 6).
