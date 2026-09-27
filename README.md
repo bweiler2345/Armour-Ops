@@ -124,7 +124,7 @@ What exists:
 - Everyone can change their own password on the Account screen. Users with a temporary password see a reminder.
 - The Jobs and Weekly Setup screens still use fictional sample data from `src/lib/mock-data.ts`. They are not real employees or customers.
 
-**Phase 2: approved workflow — built; waiting for the owner to run the two Phase 2 database updates** (see `docs/SUPABASE_SETUP.md`, step 9).
+**Phase 2: approved workflow — complete and verified against the live Supabase project.** Both migrations ran, and the owner confirmed the stored workflow at `/owner/workflow` matches the approved specification. Setup steps are in `docs/SUPABASE_SETUP.md`, step 9.
 
 - The approved workflow from `docs/PRODUCT_SPEC.md` is stored as version 1 of a versioned, read-only workflow template: 5 stages and 16 steps, with Final checks, reference-only setup lists, proof requirements, structured inputs, owner-only installation milestones, and Completion Work.
 - Published versions cannot be changed, so jobs will keep the version they started with.
