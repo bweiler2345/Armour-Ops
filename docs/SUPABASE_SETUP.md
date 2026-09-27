@@ -107,3 +107,24 @@ Older projects may only show the legacy **service_role** key under **Legacy API 
 ### Local Cloudflare previews
 
 `npm run cf:preview` does not use the secret key from `.env.local`: the build removes it from the Worker on purpose. To use the Team screen in a local Cloudflare preview, put the same `SUPABASE_SECRET_KEY=...` line in a file named `.dev.vars` in the project folder. `.dev.vars` is also ignored by Git.
+
+## 9. Phase 2: Load the approved workflow
+
+Run these two files, **in this order**, in **SQL Editor** (a new query for each, paste the whole file, select **Run**):
+
+1. `supabase/migrations/20260927020000_workflow_templates.sql` creates the versioned workflow template tables, their rules, and read-only security. It should finish with "Success. No rows returned."
+2. `supabase/migrations/20260927020100_seed_approved_workflow_v1.sql` loads the approved workflow from `docs/PRODUCT_SPEC.md` as version 1 and makes it active. It should finish with "Success. No rows returned."
+
+The second file is safe to run again: if version 1 is already loaded with the same content it does nothing, and if a different version 1 exists it stops with an error instead of changing it.
+
+Then check it:
+
+1. Sign in as the owner and open **Owner Dashboard**, then **Workflow**.
+2. Compare it with `docs/PRODUCT_SPEC.md`: 5 stages (Initial Prep, Base-Coat Installation, Top-Coat Prep, Top-Coat Installation, Completion Work) and 16 steps (9 in Initial Prep, 5 in Top-Coat Prep, and Caulking Complete and Baseboard Complete in Completion Work).
+3. Optional check in **SQL Editor**:
+
+   ```sql
+   select key, version, status from public.workflow_templates;
+   ```
+
+   It should return one row: `armour-floors-standard`, version `1`, status `active`.

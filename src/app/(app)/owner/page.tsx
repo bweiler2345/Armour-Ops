@@ -38,6 +38,22 @@ export default async function OwnerDashboardPage() {
         <ChevronRightIcon className="h-6 w-6 shrink-0 text-gold-300" />
       </Link>
 
+      <Link
+        href="/owner/workflow"
+        className="mb-6 flex min-h-20 items-center gap-4 rounded-3xl border border-charcoal-800 bg-charcoal-900 p-5 transition hover:border-gold-500/40 active:scale-[0.99]"
+      >
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-charcoal-800 text-gold-400">
+          <ChecklistIcon className="h-7 w-7" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-lg font-semibold text-white">Workflow</p>
+          <p className="text-[15px] text-charcoal-300">
+            Review the approved job workflow (read only)
+          </p>
+        </div>
+        <ChevronRightIcon className="h-6 w-6 shrink-0 text-gold-300" />
+      </Link>
+
       <div className="flex items-start gap-3 rounded-2xl border border-gold-500/30 bg-gold-900/30 p-4">
         <ChecklistIcon className="mt-0.5 h-6 w-6 shrink-0 text-gold-300" />
         <p className="text-[15px] leading-relaxed text-charcoal-300">

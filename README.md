@@ -61,7 +61,8 @@ To preview on an iPhone connected to the same Wi-Fi network, open `http://<your-
 | ------------------- | ------------------------------------------------------- |
 | `npm run lint`      | Checks the code with ESLint                             |
 | `npm run typecheck` | Generates route types and checks TypeScript             |
-| `npm test`          | Runs the unit tests                                     |
+| `npm test`          | Runs the unit and database tests                        |
+| `npm run workflow:seed` | Regenerates the workflow seed migration from `src/lib/workflow/approved-workflow.ts` |
 | `npm run build`     | Creates an optimized production build                   |
 | `npm run start`     | Serves the production build (after `build`)             |
 | `npm run cf:build`  | Builds for Cloudflare Workers, then strips and scans for server secrets |
@@ -83,7 +84,7 @@ src/
       jobs/               Jobs screen
       weekly-setup/       Weekly Setup screen
       account/            Account screen and sign-out
-      owner/              Owner-only area: dashboard placeholder and Team screen
+      owner/              Owner-only area: dashboard, Team screen, workflow preview
     globals.css           Color palette and global styles
   components/             Shared UI (header, bottom nav, job card, icons)
   lib/
@@ -91,12 +92,14 @@ src/
     auth/                 Sign-in, validation, roles, safe redirects, temporary passwords (with unit tests)
     actions/              Server Actions for the Team screen and password changes
     team/                 Team screen types
+    workflow/             Approved workflow data, seed generator, spec parser, loader (with tests)
     supabase/             Supabase clients for the server, proxy, and server-only admin tasks
     database.types.ts     Database types (hand-written until the Supabase CLI is set up)
     mock-data.ts          Temporary sample jobs and trailers
+  test/                   Test-only helpers (runs migrations in an in-process Postgres)
 supabase/
   migrations/             Database schema and security rules
-scripts/                  Build helpers (Worker secret protection)
+scripts/                  Build helpers (Worker secret protection, workflow seed generator)
 docs/                     Product spec, implementation plan, Supabase setup
 ```
 
@@ -120,5 +123,11 @@ What exists:
 - Account history records creation, password resets, deactivation, and reactivation without any password.
 - Everyone can change their own password on the Account screen. Users with a temporary password see a reminder.
 - The Jobs and Weekly Setup screens still use fictional sample data from `src/lib/mock-data.ts`. They are not real employees or customers.
+
+**Phase 2: approved workflow — built; waiting for the owner to run the two Phase 2 database updates** (see `docs/SUPABASE_SETUP.md`, step 9).
+
+- The approved workflow from `docs/PRODUCT_SPEC.md` is stored as version 1 of a versioned, read-only workflow template: 5 stages and 16 steps, with Final checks, reference-only setup lists, proof requirements, structured inputs, owner-only installation milestones, and Completion Work.
+- Published versions cannot be changed, so jobs will keep the version they started with.
+- Owners can review the stored workflow at `/owner/workflow`.
 
 Not built yet: role changes on the Team screen, the job workflow, photo and video uploads, Weekly Setup checklists, notifications, and deployment. See the implementation plan for the order.
