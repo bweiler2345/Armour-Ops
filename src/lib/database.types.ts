@@ -524,19 +524,29 @@ export type Database = {
       };
       make_job_available: { Args: { p_job: string }; Returns: undefined };
       claim_job: { Args: { p_job: string }; Returns: undefined };
-      acquire_step_edit: { Args: { p_step: string }; Returns: string };
-      release_step_edit: { Args: { p_step: string }; Returns: undefined };
+      acquire_step_edit: {
+        Args: { p_step: string };
+        Returns: { lease_id: string; expires_at: string }[];
+      };
+      renew_step_edit: { Args: { p_step: string; p_lease: string }; Returns: string };
+      release_step_edit: { Args: { p_step: string; p_lease: string }; Returns: undefined };
       clear_step_edit: { Args: { p_step: string }; Returns: undefined };
       save_step_check: {
-        Args: { p_step: string; p_item: string; p_checked: boolean };
+        Args: { p_step: string; p_lease: string; p_item: string; p_checked: boolean };
         Returns: undefined;
       };
       save_step_input: {
-        Args: { p_step: string; p_input: string; p_value: string };
+        Args: { p_step: string; p_lease: string; p_input: string; p_value: string };
         Returns: undefined;
       };
-      save_step_notes: { Args: { p_step: string; p_notes: string }; Returns: undefined };
-      complete_step: { Args: { p_step: string; p_confirmed: boolean }; Returns: undefined };
+      save_step_notes: {
+        Args: { p_step: string; p_lease: string; p_notes: string };
+        Returns: undefined;
+      };
+      complete_step: {
+        Args: { p_step: string; p_lease: string; p_confirmed: boolean };
+        Returns: undefined;
+      };
       join_job: { Args: { p_job: string }; Returns: undefined };
       add_team_member: { Args: { p_job: string; p_employee: string }; Returns: undefined };
       change_lead: { Args: { p_job: string; p_new_lead: string }; Returns: undefined };

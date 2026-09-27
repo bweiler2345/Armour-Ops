@@ -16,6 +16,7 @@ import {
   acquireStepEdit,
   completeStep,
   releaseStepEdit,
+  renewStepEdit,
   saveStepCheck,
   saveStepInput,
   loadStepLive,
@@ -23,6 +24,7 @@ import {
   type StepResult,
 } from "@/lib/actions/steps";
 import { formatTime } from "@/lib/format";
+import { holdAfterRefusal, LEASE_MESSAGES, type LeaseRefusal } from "@/lib/steps/lease";
 import { mergeLive, sameAnswers, type LocalStep } from "@/lib/steps/sync";
 import {
   missingForCompletion,
@@ -31,17 +33,16 @@ import {
   type StepInput,
 } from "@/lib/steps/validation";
 
-// Renews the edit hold while the screen is open (the hold lasts two minutes).
-const RENEW_EVERY_MS = 30_000;
-// While someone else is editing, check for their saved work this often
-// (only while the app is on screen).
-const WATCH_EVERY_MS = 8_000;
+// While editing, renew this screen's lease this often (a lease lasts two
+// minutes); a refusal, such as the owner ending the session, is noticed
+// within this time. While not editing, check for others' saves this often.
+// Both only run while the app is on screen.
+const HEARTBEAT_MS = 8_000;
 
 type Hold =
   | { status: "acquiring" }
   | { status: "held"; expiresAt: string }
-  | { status: "conflict"; message: string }
-  | { status: "expired"; message: string }
+  | { status: "refused"; reason: LeaseRefusal; message: string }
   | { status: "error"; message: string };
 
 type Save = { status: "idle" | "saving" | "saved" } | { status: "error"; message: string };
@@ -89,8 +90,10 @@ export default function StepWorkspace({
   const [completing, startCompleting] = useTransition();
   const [completeError, setCompleteError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
-  const holding = useRef(false);
-  const holdExpiresAt = useRef(0);
+  // The lease the database issued to this screen. Only an explicit acquire
+  // sets it; any refusal clears it. Saves are sent with it and rejected by the
+  // database without it.
+  const lease = useRef<string | null>(null);
   // Changes on this screen the database hasn't confirmed yet. Refreshes never
   // overwrite these.
   const unsaved = useRef({ checks: new Set<string>(), inputs: new Set<string>(), notes: false });
@@ -120,77 +123,87 @@ export default function StepWorkspace({
     [router, stepId],
   );
 
-  const handleFailure = useCallback(
-    (result: Extract<StepResult, { ok: false }>) => {
-      if (result.reason === "conflict" || result.reason === "expired") {
-        holding.current = false;
-        setHold({ status: result.reason, message: result.error });
-        // Show what the other person saved.
-        void sync(false);
-      }
-      return result.error;
+  // Stop editing on this screen. Typed text stays visible but nothing more is
+  // saved until the employee asks for a new lease.
+  const stopEditing = useCallback(
+    (reason: LeaseRefusal) => {
+      lease.current = null;
+      setHold({ status: "refused", reason, message: LEASE_MESSAGES[reason] });
+      void sync(false);
     },
     [sync],
   );
 
-  // Takes or renews the edit hold, then loads the latest saved answers before
-  // editing is allowed, so nobody edits from an out-of-date screen.
+  const handleFailure = useCallback(
+    (result: Extract<StepResult, { ok: false }>) => {
+      if (result.reason !== "error") stopEditing(result.reason);
+      return result.error;
+    },
+    [stopEditing],
+  );
+
+  // Explicitly asks the database for a new lease, then loads the latest saved
+  // answers before editing is allowed, so nobody edits from an out-of-date
+  // screen.
   const acquire = useCallback(async () => {
-    const keptHold = holding.current && holdExpiresAt.current > Date.now();
+    setHold({ status: "acquiring" });
     const result = await acquireStepEdit(stepId);
-    if (!result.ok) {
-      holding.current = false;
-      if (result.reason === "conflict") {
-        setHold({ status: "conflict", message: result.error });
+    if (!result.ok || !result.lease) {
+      lease.current = null;
+      if (!result.ok && result.reason !== "error") {
+        setHold({ status: "refused", reason: result.reason, message: LEASE_MESSAGES[result.reason] });
         void sync(false);
       } else {
-        setHold({ status: "error", message: result.error });
+        setHold({ status: "error", message: result.ok ? "Couldn’t start editing. Try again." : result.error });
       }
       return;
     }
 
-    if (!keptHold) setHold({ status: "acquiring" });
-    const loaded = await sync(keptHold);
+    const loaded = await sync(false);
     if (!loaded) {
-      holding.current = false;
-      void releaseStepEdit(stepId);
+      void releaseStepEdit(stepId, result.lease);
       setHold({ status: "error", message: "Couldn’t load the latest answers. Try again." });
       return;
     }
-    holding.current = true;
-    holdExpiresAt.current = result.expiresAt ? Date.parse(result.expiresAt) : 0;
+    lease.current = result.lease;
     setHold({ status: "held", expiresAt: result.expiresAt ?? "" });
   }, [stepId, sync]);
 
-  // Take the hold when the screen opens and renew it while open. While someone
-  // else holds it, keep showing their saved work. Catch up whenever the app
-  // comes back to the foreground. Give the hold back on leave.
+  // Renews this screen's own lease. It never asks for a new one: if the
+  // database refuses (for example, the owner ended the session), editing
+  // stops here.
+  const heartbeat = useCallback(async () => {
+    const current = lease.current;
+    if (!current) return;
+    const result = await renewStepEdit(stepId, current);
+    if (lease.current !== current) return;
+    if (result.ok) setHold({ status: "held", expiresAt: result.expiresAt ?? "" });
+    else if (result.reason !== "error") stopEditing(result.reason);
+  }, [stepId, stopEditing]);
+
+  // Ask for a lease when the screen opens. While editing, renew it; while not,
+  // keep showing others' saved work. Catch up whenever the app comes back to
+  // the foreground. Give the lease back on leave.
   useEffect(() => {
     // Asynchronous: state is set when the server answers.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void acquire();
-    const renew = window.setInterval(() => {
-      if (holding.current) void acquire();
-    }, RENEW_EVERY_MS);
-    const watch = window.setInterval(() => {
-      if (!holding.current && document.visibilityState === "visible") void sync(false);
-    }, WATCH_EVERY_MS);
-    const onVisible = () => {
+    const tick = () => {
       if (document.visibilityState !== "visible") return;
-      if (holding.current) void acquire();
+      if (lease.current) void heartbeat();
       else void sync(false);
     };
-    document.addEventListener("visibilitychange", onVisible);
-    window.addEventListener("focus", onVisible);
+    const timer = window.setInterval(tick, HEARTBEAT_MS);
+    document.addEventListener("visibilitychange", tick);
+    window.addEventListener("focus", tick);
     return () => {
-      window.clearInterval(renew);
-      window.clearInterval(watch);
-      document.removeEventListener("visibilitychange", onVisible);
-      window.removeEventListener("focus", onVisible);
-      if (holding.current) void releaseStepEdit(stepId);
-      holding.current = false;
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", tick);
+      window.removeEventListener("focus", tick);
+      if (lease.current) void releaseStepEdit(stepId, lease.current);
+      lease.current = null;
     };
-  }, [acquire, stepId, sync]);
+  }, [acquire, heartbeat, stepId, sync]);
 
   const editable = hold.status === "held" && !done;
   const { checked, answers, notes, confirmed } = local;
@@ -222,7 +235,7 @@ export default function StepWorkspace({
     unsaved.current.checks.add(id);
     setChecked(id, next);
     await persist(
-      () => saveStepCheck(stepId, id, next),
+      () => saveStepCheck(stepId, lease.current ?? "", id, next),
       () => setChecked(id, !next),
     );
     unsaved.current.checks.delete(id);
@@ -243,7 +256,7 @@ export default function StepWorkspace({
       unsaved.current.inputs.delete(input.id);
       return;
     }
-    const ok = await persist(() => saveStepInput(stepId, input.id, raw));
+    const ok = await persist(() => saveStepInput(stepId, lease.current ?? "", input.id, raw));
     unsaved.current.inputs.delete(input.id);
     if (!ok) return;
     setLocal((current) => ({
@@ -254,7 +267,7 @@ export default function StepWorkspace({
 
   async function commitNotes() {
     if (!editable || !unsaved.current.notes) return;
-    const ok = await persist(() => saveStepNotes(stepId, notes));
+    const ok = await persist(() => saveStepNotes(stepId, lease.current ?? "", notes));
     if (ok) unsaved.current.notes = false;
   }
 
@@ -270,9 +283,9 @@ export default function StepWorkspace({
   function complete() {
     setCompleteError(null);
     startCompleting(async () => {
-      const result = await completeStep(jobId, stepId, confirmed);
+      const result = await completeStep(jobId, stepId, lease.current ?? "", confirmed);
       if (result.ok) {
-        holding.current = false;
+        lease.current = null;
         setDone(true);
         router.refresh();
       } else {
@@ -308,10 +321,7 @@ export default function StepWorkspace({
         hold={hold}
         holderName={holder.name}
         holderExpiresAt={holder.expiresAt}
-        onRetry={() => {
-          setHold({ status: "acquiring" });
-          void acquire();
-        }}
+        onRetry={() => void acquire()}
       />
 
       {checks.length > 0 && (
@@ -486,28 +496,34 @@ function HoldBanner({
       </p>
     );
   }
-  const who =
-    hold.status === "conflict" && holderName
-      ? `${holderName} is editing this step${holderExpiresAt ? ` until about ${formatTime(holderExpiresAt)}` : ""}.`
-      : hold.message;
+
+  const refused = hold.status === "refused" ? holdAfterRefusal(hold.reason) : null;
+  const text =
+    hold.status === "refused" && hold.reason === "conflict" && holderName
+      ? `${holderName} is editing this step${holderExpiresAt ? ` until about ${formatTime(holderExpiresAt)}` : ""}. You can edit once they leave it or their time runs out.`
+      : hold.status === "refused" && hold.reason !== "conflict"
+        ? `${hold.message} Nothing more is saved from this screen until you tap “Edit this step”.`
+        : hold.message;
+
   return (
     <div
       role="alert"
       className={`flex flex-col gap-3 rounded-2xl border p-4 ${
-        hold.status === "conflict" ? "border-gold-500/40 bg-gold-900/40" : "border-red-400/40 bg-red-500/10"
+        hold.status === "refused" && hold.reason === "conflict"
+          ? "border-gold-500/40 bg-gold-900/40"
+          : "border-red-400/40 bg-red-500/10"
       }`}
     >
       <p className="flex items-start gap-3 text-[15px] leading-relaxed font-medium text-white">
         <LockIcon className="mt-0.5 h-5 w-5 shrink-0 text-gold-300" />
-        {who}
-        {hold.status === "conflict" && " You can edit once they leave it or their time runs out."}
+        {text}
       </p>
       <button
         type="button"
         onClick={onRetry}
         className="flex min-h-14 items-center justify-center rounded-2xl border border-gold-500/50 bg-charcoal-800 text-base font-semibold text-gold-300 active:scale-[0.98]"
       >
-        {hold.status === "expired" ? "Edit this step" : "Try again"}
+        {refused?.action ?? "Try again"}
       </button>
     </div>
   );

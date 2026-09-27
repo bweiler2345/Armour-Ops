@@ -169,9 +169,10 @@ You need the owner account and at least **three active employee accounts** (crea
 
 ## 12. Phase 5: Step screens (without media)
 
-Run this file in **SQL Editor** (new query, paste the whole file, select **Run**). The Phase 4 file must already have been run.
+Run these files in **SQL Editor**, **in this order** (a new query for each, paste the whole file, select **Run**). The Phase 4 file must already have been run.
 
 1. `supabase/migrations/20260927050000_step_work.sql` adds step attempts, Final check and entry answers, edit holds, the step rules, and step progress. It should finish with "Success. No rows returned."
+2. `supabase/migrations/20260927060000_step_edit_leases.sql` turns edit holds into leases: every save needs the exact lease the database issued to that screen, and a cleared or old lease can never save again. It should finish with "Success. No rows returned." If you already ran file 1, run only this one.
 
 What to expect: in the approved workflow, the first step (Grind Floor) needs a video, and uploading arrives in Phase 6. So on a live job you can work through Grind Floor's Final check, but you cannot complete it yet, and the later steps stay locked. Completing no-proof steps (such as Clean Edges and Corners and Collect Excess Flake) is covered by the automated database tests.
 
