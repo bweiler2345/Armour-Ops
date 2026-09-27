@@ -63,15 +63,18 @@ When something goes wrong on a job, employees text or call the owner. In-app pro
 
 - Employees and the owner sign in with email and password.
 - There is no public sign-up. The owner creates every employee account.
-- The owner manages accounts on an owner-only Team screen. The Team screen will allow the owner to:
-  - Add an employee’s name and email.
-  - Send an account invitation.
-  - Resend an expired invitation.
-  - See whether the invitation was accepted.
+- The owner manages accounts on an owner-only Team screen. The Team screen allows the owner to:
+  - Create an employee account by entering the employee’s name and email.
+  - See a secure temporary password that Armour Ops generates for the new account. It is shown to the owner once, so the owner can send it to the employee by text.
+  - Generate a new temporary password for an employee who forgets theirs. It is also shown once.
   - Deactivate or reactivate an employee.
   - View the employee’s role.
   - Change roles later if needed.
-- Invitations and administrative account changes happen only through a trusted server-only path. No administrative secret is ever exposed in browser code.
+- Temporary passwords are never stored in the application database, logs, or activity history.
+- After signing in, every user can change their own password from the Account screen.
+- There are no automated invitation emails or password-reset emails in version one.
+- Account creation, temporary-password resets, activation, deactivation, and role changes are owner-only actions.
+- Administrative account changes happen only through a trusted server-only path. No administrative secret is ever exposed in browser code, logs, error messages, or the public repository.
 - Real owner or employee names and email addresses are never placed in the public repository, documentation, mock data, migrations, or seed files.
 
 ## Job creation
@@ -873,5 +876,7 @@ Do not implement these until specifically requested:
   - Owner resolution of reports
 - Text message notifications
 - Phone push notifications
+- Automated account invitation emails
+- Email password recovery (employees resetting a forgotten password themselves by email)
 - Archive and export of job pictures, videos, and records
 - Fuller inventory tracking built on Weekly Setup history, such as usage trends and restocking lists

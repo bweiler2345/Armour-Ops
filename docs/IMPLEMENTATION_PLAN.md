@@ -55,7 +55,7 @@ The existing visual components will be kept and fed real data rather than rewrit
 | Employee pictures and videos | Cloudflare R2 (private bucket) | Supabase Storage is **not** used for job media. |
 | Database backups | Weekly export to the private R2 bucket | Newest 12 weekly backups kept, older ones deleted automatically. See [Database backups](#database-backups). |
 | Scheduled jobs | Cloudflare Workers Cron Triggers | Media retention deletion, stale upload cleanup, and email retry. |
-| Invitation and notification email | A free-tier transactional email provider | Selected in Phase 1B, because Supabase's built-in email service is not suitable for sending invitations to employees. |
+| Owner notification email | A free-tier transactional email provider | Selected in Phase 7 and used only for the two approved owner notification emails. Not used for accounts: version one has no invitation or password-reset emails. |
 
 The goal is to stay free or extremely inexpensive at the current company size.
 
@@ -77,10 +77,10 @@ Planned additions, installed only in the phase that needs them:
 | `zod` | 1 | Server-side validation of every form and action input |
 | Supabase CLI (dev dependency) | 1 | Local database, migrations, type generation, database tests |
 | `vitest` | 1 | Unit tests for pure logic (sign-in validation, redirects, workflow, inventory) |
-| `@playwright/test` | 1B | End-to-end tests with iPhone viewport emulation, once a Supabase project with test accounts exists |
+| `@playwright/test` | Later, when a dedicated test Supabase project exists | End-to-end tests with iPhone viewport emulation |
 | `@opennextjs/cloudflare`, `wrangler` and `esbuild` (dev dependencies) | Hosting check (added) | Build and preview the app on Cloudflare Workers |
 | `aws4fetch` | 6 | Server-side R2 requests and presigned URLs (R2 is S3-compatible). Chosen over the much larger AWS SDK to stay within the Workers Free size limit. |
-| Email provider SDK (chosen in Phase 1B) | 1B | Invitation email (through Supabase custom SMTP) and notification email |
+| Email provider SDK (chosen in Phase 7) | 7 | Owner notification email only |
 
 Supabase Storage and browser-side upload libraries that need storage credentials are not used.
 
@@ -99,10 +99,10 @@ Next.js 16 conventions that affect this plan (from `node_modules/next/dist/docs/
 
 | Secret | Where it lives | Never |
 | --- | --- | --- |
-| Supabase URL and anon (public) key | `.env.local`, later Cloudflare Workers environment variables | Safe for the browser by design, protected by RLS |
-| Supabase service-role key | Server environment only, read only by `src/lib/supabase/admin.ts` (`server-only`) | Never prefixed `NEXT_PUBLIC_`, never in the repository |
+| Supabase URL and publishable key | `.env.local`, later Cloudflare Workers environment variables | Safe for the browser by design, protected by RLS |
+| Supabase secret key (`SUPABASE_SECRET_KEY`, the `sb_secret_...` key) | `.env.local` during development, a Cloudflare Workers secret once deployed. Read only by `src/lib/supabase/admin.ts` (`server-only`) | Never prefixed `NEXT_PUBLIC_`, never in browser code, logs, error messages, or the repository |
 | R2 account ID, access key ID, secret access key, bucket name | Server environment only, read only by `src/lib/r2.ts` (`server-only`) | Never in browser code or the repository |
-| Email provider API key and SMTP credentials | Server environment and the Supabase dashboard's SMTP settings | Never in the repository |
+| Email provider API key (Phase 7 owner notifications only) | Server environment only | Never in the repository |
 
 Server secrets for the deployed app are stored as Cloudflare Workers secrets. Secrets for the weekly backup job are stored as encrypted GitHub Actions secrets. Local Workers preview files (`.dev.vars`) are added to `.gitignore` when hosting is set up.
 
@@ -124,7 +124,8 @@ Server secrets for the deployed app are stored as Cloudflare Workers secrets. Se
 - Supabase Auth with email and password, using cookie-based sessions via `@supabase/ssr`.
 - Public sign-up is turned off in Supabase. Every employee account is created by the owner.
 - Roles are read from `profiles` in the database by the DAL. No JWT custom claims are needed. (A Supabase custom access token hook could later copy the role into the JWT for optimistic redirects in `proxy.ts`, but it is not required.)
-- Supabase Auth sends invitation email through the chosen provider using Supabase's custom SMTP setting.
+- Supabase Auth sends no email in version one. There are no invitation or password-reset emails. The owner creates accounts with temporary passwords and sends them to employees by text.
+- Supabase's **Secure password change** setting stays off. When on, it can require an emailed reauthentication code, which cannot be delivered without an email provider. Current-password checks are done by the app instead (see below).
 
 ### First owner account (bootstrap)
 
@@ -135,22 +136,31 @@ Because no real names or emails may be committed, the first owner account is cre
 
 After this, the owner creates every other account from the Team screen.
 
-### Team screen and invitations
+### Team screen and temporary passwords
 
-Owner-only screen at `/owner/team`. All account administration runs in Server Actions that call `requireOwner()` and then use the service-role client in `src/lib/supabase/admin.ts`. The service-role key is never sent to the browser.
+Owner-only screen at `/owner/team`. All account administration runs in Server Actions that call `requireOwner()` first and only then use the admin client in `src/lib/supabase/admin.ts`. That module imports `server-only` and reads `SUPABASE_SECRET_KEY`, so the build fails if browser code ever imports it. Admin API errors are mapped to plain messages; raw error objects and the key are never logged or returned.
 
 | Capability | How it works |
 | --- | --- |
-| Add an employee (name and email) | Owner enters name, email, and role. The server calls the Supabase admin invite API. A trigger creates the `profiles` row. `invited_at` and `invitation_last_sent_at` are recorded. |
-| Send invitation | The invitation email links to `/auth/confirm`, which verifies the one-time token and signs the user in. It then sends them to `/auth/set-password` to choose a password. |
-| See whether it was accepted | Setting the password records `invitation_accepted_at`. The Team list shows Invited, Accepted, or Deactivated. |
-| Resend an expired invitation | The server re-issues the invitation with the admin API and updates `invitation_last_sent_at`. The exact admin call (a repeat invite or a generated invite link sent through the email provider) is confirmed during Phase 1B. |
+| Create an employee account | Owner enters name, email, and role (employee by default). The server generates a temporary password and calls the Supabase admin `createUser` API with the email already confirmed. The `profiles` trigger creates the profile, and the server sets the name, role, and `must_change_password = true`. |
+| Show the temporary password once | The password is returned only in that one Server Action response and shown in a dialog with a large **Copy** button and "This password will not be shown again." It lives only in that browser tab's memory and is gone when the dialog closes. It is never placed in a URL, cookie, database row, log, or activity record. |
+| Generate a new temporary password | For a forgotten password. The server generates a new one, sets it with the admin `updateUserById` API, sets `must_change_password = true`, and shows it once the same way. The old password stops working immediately. |
 | Deactivate | Sets `profiles.active = false` and bans the auth user through the admin API, which blocks sign-in and token refresh. DAL and RLS both check `active`, so access stops right away. Past activity is untouched. |
 | Reactivate | Sets `active = true` and lifts the ban. |
-| View role | Shown on each row. |
-| Change role | Updates `profiles.role`. The last active owner cannot be demoted or deactivated. |
+| View role and status | Each row shows name, email, role, and status: Active, Temporary password (not yet changed), or Deactivated. |
+| Change role | Later, when needed (not part of Phase 1B). Until then, roles are changed in the Supabase SQL editor. When built, the last active owner cannot be demoted. |
+| Protect the owner's own account | Owners cannot deactivate themselves or reset their own password from the Team screen (they use Change Password on the Account screen), so the last active owner can never be locked out. |
 
-The invitation link lifetime is a Supabase setting. A proposed value of 24 hours will be set in Phase 1B.
+**Temporary password generation (proposed values).** 16 characters from `crypto.getRandomValues`, using lowercase letters and digits with look-alike characters removed (no `0`, `o`, `1`, `l`, `i`), shown in groups of four such as `k7mq-3xtb-9hwr-2fzp` so it is easy to text and type on a phone. This gives roughly 80 bits of randomness. The hyphens are part of the password.
+
+**Account history without secrets.** An `account_events` table records who created an account, issued a temporary password, deactivated, reactivated, or changed a role or password, and when. It never stores a password or any part of one.
+
+### Changing your own password
+
+- The Account screen has a **Change Password** form for every signed-in user: current password, new password, and confirm new password, each with show and hide.
+- The server re-checks the current password by signing in with it, then calls Supabase `updateUser` with the new password, then clears `must_change_password` and records `password_changed` in `account_events`.
+- Proposed rules: at least 10 characters, different from the current password, and the two new-password fields must match. The same minimum is set in Supabase's password settings.
+- While `must_change_password` is true, the Jobs and Account screens show a prominent reminder to change the temporary password. It does not block work.
 
 ### Route protection (three layers)
 
@@ -170,7 +180,7 @@ RLS is enabled on every table. `security definer` helper functions (with `search
 
 | Data | Owner | Employee |
 | --- | --- | --- |
-| Profiles | All | Names and roles of active users (needed to show job teams). Email and invitation fields only for their own row. |
+| Profiles | All | Names and roles of active users (needed to show job teams). Email and account-status fields only for their own row. |
 | Jobs | All | All jobs, including Scheduled jobs (read-only until made available) |
 | Job assignments | All | For every job they can read |
 | Job stages, steps, blocks, items, inputs, proof requirements | All | For every job they can read |
@@ -247,8 +257,8 @@ Only `checklist` items create checklist responses. This keeps the setup referenc
 #### People
 
 **`profiles`**
-`id` (PK, FK `auth.users.id`), `full_name`, `email` (copy for the Team screen), `role app_role`, `active bool default true`, `invited_at`, `invitation_last_sent_at`, `invitation_accepted_at`, `deactivated_at`, `deactivated_by`, `created_at`, `updated_at`.
-Rows are created by a trigger on `auth.users` and changed only by owner Team actions (and `invitation_accepted_at` by the set-password flow).
+`id` (PK, FK `auth.users.id`), `full_name`, `email` (copy for the Team screen), `role app_role`, `active bool default true`, `must_change_password bool default false`, `temp_password_issued_at`, `temp_password_issued_by`, `password_changed_at`, `deactivated_at`, `deactivated_by`, `created_at`, `updated_at`.
+Rows are created by a trigger on `auth.users` and changed only by owner Team actions, except that a user's own password change clears `must_change_password` and sets `password_changed_at` through a server-only path. Temporary passwords are never stored here.
 
 #### Workflow templates (the approved workflow)
 
@@ -417,8 +427,6 @@ All routes are under `src/app`. Route groups keep layouts separate without affec
 | Route | Screen |
 | --- | --- |
 | `/sign-in` | Email and password form (Server Action). Large inputs and button. No sign-up link. |
-| `/auth/confirm` | Route Handler that verifies the invitation token and signs the user in. |
-| `/auth/set-password` | New users choose their password. Records invitation acceptance. |
 | `/` | Redirects to `/jobs` for employees and `/owner` for owners. |
 | `/account` | Name, role, and a working Sign Out. |
 | `/media/[mediaId]` | Route Handler. Checks access and redirects to a short-lived R2 viewing link (see [Media](#5-media-uploads-cloudflare-r2)). |
@@ -446,7 +454,7 @@ Claiming and joining are actions on `/jobs` and `/jobs/[jobId]`, not separate pa
 | `/owner/jobs/[jobId]/edit` | **Owner job editing.** Job details and toggles, plus the step editor: add a custom step, remove, reorder, skip, and edit steps for this job only. |
 | `/owner/jobs/[jobId]/steps/new` | **Custom step editor.** Step name, stage, position, instructions, optional reference picture, optional checklist, required proof type (none, picture, or video), structured inputs, and final confirmation text. The same form edits existing steps. |
 | `/owner/jobs/[jobId]/steps/[stepId]` | All attempts of one step, including superseded ones, with responses, media, notes, who did what, and timestamps. Reopen, skip, edit, and clear-edit-hold actions. |
-| `/owner/team` | **Team screen** (see [Team screen and invitations](#team-screen-and-invitations)). |
+| `/owner/team` | **Team screen** (see [Team screen and temporary passwords](#team-screen-and-temporary-passwords)). |
 | `/owner/weekly-setup` | Current condition of both trailers and submission history. |
 | `/owner/weekly-setup/[submissionId]` | One submission in full. |
 
@@ -462,7 +470,7 @@ src/
     supabase/browser.ts            browser client (realtime only)
     supabase/admin.ts              service-role client, server-only, Team actions only
     r2.ts                          R2 client and presigning, server-only
-    email.ts                       email provider client, server-only
+    email.ts                       email provider client for owner notifications (Phase 7), server-only
     dal.ts                         requireUser(), requireOwner()
     database.types.ts              generated
     workflow/                      pure functions: unlocking, progress, validation, status labels
@@ -653,7 +661,7 @@ The approved limits and formats are in the spec's [Pictures and videos](./PRODUC
 - **In-app:** `complete_step` inserts a `notifications` row per owner in the same transaction as the status change, so a notification can never be lost. The owner dashboard shows unread notifications, and `/owner/notifications` keeps the full history.
 - **Email:** after the step completion commits, the Server Action uses `after()` to send each pending notification email through the provider, then records `sent` or `failed`. Failed emails are retried by a Workers Cron Trigger once deployed, and on the next owner page load before then.
 - **Email contents:** client name, address, completed stage, the employee who completed the stage's final step, the completion time (from the database, shown in the company's local time zone), and a link to the job (built from an `APP_URL` environment variable).
-- **Provider:** a free-tier transactional email provider selected in Phase 1B, also used as Supabase's custom SMTP for invitations. Credentials live only in server environment settings and the Supabase dashboard.
+- **Provider:** a free-tier transactional email provider selected in Phase 7, used only for these owner notification emails. Its credentials live only in server environment settings.
 - Text message and phone push notifications are future features.
 
 ### Database backups
@@ -709,12 +717,12 @@ Each phase ends with lint, a production build, its listed tests, and a check on 
 - **Confirm before moving on:** Nothing loads while signed out. Employees cannot reach owner pages. No real personal information or credentials have been committed.
 - **Status: complete and verified (2026-09-27).** The owner tested against the real Supabase Free project: the owner account signed in, opened `/owner`, and the Account screen showed the owner's name and Owner role; a wrong password showed an error; an employee test account signed in, and visiting `/owner` redirected it to `/jobs`. Credentials stay in the untracked `.env.local` and the Supabase dashboard only.
 
-### Phase 1B: Team screen and invitations
+### Phase 1B: Team screen and temporary passwords
 
-- **Features:** Selection of the free-tier email provider and its setup as Supabase custom SMTP. The owner-only **Team screen**: add an employee (name, email, role), send and resend invitations, invitation status, deactivate and reactivate, and change role. `/auth/confirm` and `/auth/set-password`. The service-role client in `src/lib/supabase/admin.ts`. Playwright end-to-end setup.
-- **Files or areas:** `supabase/migrations` (invitation columns), `src/lib/supabase/admin.ts`, `src/lib/actions/team.ts`, `src/app/auth/*`, `src/app/owner/team`.
-- **Testing:** Database tests: employees cannot change roles or read other users' email. A search of the production build output to confirm no service-role key appears in browser bundles. Manual test: invite a test address, accept on an iPhone, set a password, sign in; resend; deactivate (sign-in fails) and reactivate.
-- **Confirm before moving on:** The owner can invite, deactivate, and reactivate test accounts.
+- **Features:** The server-only admin client in `src/lib/supabase/admin.ts` using `SUPABASE_SECRET_KEY`. The owner-only **Team screen**: create an employee account (name, email, role) with a generated temporary password shown once, generate a new temporary password, deactivate and reactivate (with confirmation, and never your own account), and separate lists of active and inactive accounts with each account's status. Role changes come later. **Change Password** on the Account screen for every user. The temporary-password reminder. A migration adding the account-status columns to `profiles` and the `account_events` table. Supabase settings: minimum password length and Secure password change off. No email provider, invitation emails, or password-reset emails.
+- **Files or areas:** `supabase/migrations`, `src/lib/supabase/admin.ts`, `src/lib/auth/*` (password generation and validation), `src/lib/actions/team.ts`, `src/lib/actions/account.ts`, `src/app/(app)/owner/team`, `src/app/(app)/account`, `.env.example`, `docs/SUPABASE_SETUP.md`.
+- **Testing:** Unit tests: generated passwords have the right length and alphabet and do not repeat; password-change validation. Database tests: employees cannot change roles, read other users' email, or read `account_events`. Checks that no temporary password appears in the database, server logs, or activity records, and that the secret key does not appear in the browser bundles or the Workers build output. Manual test on an iPhone: the owner creates a test employee, texts the temporary password, the employee signs in and changes it; the owner issues a new temporary password and the old one stops working; deactivate (sign-in fails) and reactivate; an employee cannot open `/owner/team` or run its actions.
+- **Confirm before moving on:** The owner can create, reset, deactivate, and reactivate test accounts, and employees can change their own passwords.
 
 ### Hosting compatibility check (early, before Phase 2 feature work grows)
 
@@ -767,7 +775,7 @@ Each phase ends with lint, a production build, its listed tests, and a check on 
 
 ### Phase 7: Installation milestones, notifications, completion work, and owner completion
 
-- **Features:** `mark_milestone_installed`. In-app notifications with history, and email notifications with the approved contents through the provider chosen in Phase 1B. Completion items checkable by any assigned employee. The owner review view, "Ready for owner review" grouping, and owner-only `mark_job_complete`, which sets `media_delete_after`.
+- **Features:** `mark_milestone_installed`. In-app notifications with history, and email notifications with the approved contents through an email provider selected in this phase. Completion items checkable by any assigned employee. The owner review view, "Ready for owner review" grouping, and owner-only `mark_job_complete`, which sets `media_delete_after`.
 - **Files or areas:** migrations, `src/lib/actions/owner.ts`, `src/lib/email.ts`, `src/app/owner/notifications`, owner job page, employee job page.
 - **Testing:** Database tests: employees cannot mark milestones or complete jobs; milestones cannot be marked from the wrong status; unassigned employees cannot check completion items. A test that each waiting status creates one notification per owner and one email containing the six approved fields. A complete run of a test job from creation to Complete covering all four caulking and baseboard combinations.
 - **Confirm before moving on:** The owner has received both email notifications on a real job and completed it from the review screen.
@@ -809,6 +817,7 @@ These are in the spec's Future functionality list and are **not** built in versi
 
 - **In-app problem reporting:** problem-report forms with notes, pictures, or videos; blocking and non-blocking reports; the "Blocked / Problem Reported" job status; problem-report notifications; owner resolution. When built later, this will add a `problem_reports` table, a `blocked` value in `job_status` with a saved previous status, a problem route under each job, and a notification kind.
 - Text message and phone push notifications.
+- Automated account invitation emails and email password recovery. When built later, these will add an email provider as Supabase custom SMTP, `/auth/confirm` and `/auth/set-password` routes, and a "Forgot password" link on sign-in. Until then, the owner issues temporary passwords from the Team screen.
 - Archive and export of job media and records before the five-year deletion.
 - Fuller inventory tracking built on Weekly Setup history.
 - Offline workflow synchronization (the design already uses client-generated IDs and database timestamps to prepare for it).
@@ -822,4 +831,4 @@ There are no open owner decisions. All earlier decisions are recorded in `PRODUC
 
 ### Setup information needed (not decisions)
 
-Before the relevant phases, and never committed to the repository: the owner's sign-in email (Phase 1, entered in the Supabase dashboard), each employee's name and email (Phase 1B, entered on the Team screen), the trailers' names if different from "Trailer 1" and "Trailer 2" (Phase 10), and any reference images for steps (Phase 6).
+Before the relevant phases, and never committed to the repository: the owner's sign-in email (Phase 1, entered in the Supabase dashboard), each employee's name and email (Phase 1B, entered on the Team screen; temporary passwords are sent to employees by text, never stored), the trailers' names if different from "Trailer 1" and "Trailer 2" (Phase 10), and any reference images for steps (Phase 6).

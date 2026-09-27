@@ -52,7 +52,7 @@ Never copy the **secret** key or the legacy **service_role** key into `.env.loca
 
 ## 6. Create a test employee account (optional)
 
-Invitations arrive with the Team screen in Phase 1B. Until then, to test the employee view:
+Once Phase 1B is built, the owner creates employee accounts from the Team screen with temporary passwords. Until then, to test the employee view:
 
 1. Add another user the same way as step 5.1–5.2, using an email address you control.
 2. Give it a name (it is already an employee by default):

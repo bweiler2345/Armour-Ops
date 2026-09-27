@@ -110,4 +110,4 @@ What exists:
 - A real Account screen and working Sign Out.
 - The Jobs and Weekly Setup screens still use fictional sample data from `src/lib/mock-data.ts`. They are not real employees or customers.
 
-Not built yet: the Team screen and invitations, password recovery, the job workflow, photo and video uploads, Weekly Setup checklists, notifications, and deployment. See the implementation plan for the order.
+Not built yet: the Team screen (owner-created accounts with temporary passwords) and password changes, the job workflow, photo and video uploads, Weekly Setup checklists, notifications, and deployment. See the implementation plan for the order.
