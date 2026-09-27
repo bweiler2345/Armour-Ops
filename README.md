@@ -112,7 +112,7 @@ What exists:
 - Owner-only pages are blocked for employees. Deactivated accounts are signed out.
 - A real Account screen with Change Password and a working Sign Out.
 
-**Phase 1B: Team screen — built; waiting for the owner to run the database update and add the server secret key** (see `docs/SUPABASE_SETUP.md`, step 8).
+**Phase 1B: Team screen — complete and verified against the live Supabase project.** Account creation with a one-time temporary password, the employee password change and reminder, password reset, deactivation, reactivation, and employee redirects away from `/owner/team` were all tested successfully. Setup steps are in `docs/SUPABASE_SETUP.md`, step 8.
 
 - Owner-only Team screen at `/owner/team`, with active and inactive accounts listed separately.
 - The owner creates employee accounts. Armour Ops generates a temporary password on the server and shows it once, with a Copy Password button, for the owner to text to the employee. Temporary passwords are never stored or logged.
