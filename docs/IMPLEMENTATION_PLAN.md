@@ -78,8 +78,8 @@ Planned additions, installed only in the phase that needs them:
 | Supabase CLI (dev dependency) | 1 | Local database, migrations, type generation, database tests |
 | `vitest` | 1 | Unit tests for pure logic (sign-in validation, redirects, workflow, inventory) |
 | `@playwright/test` | 1B | End-to-end tests with iPhone viewport emulation, once a Supabase project with test accounts exists |
-| `@opennextjs/cloudflare`, `wrangler` (dev dependency) | Hosting check | Build and preview the app on Cloudflare Workers |
-| `@aws-sdk/client-s3`, `@aws-sdk/s3-request-presigner` | 6 | Server-side R2 access and presigned URLs (R2 is S3-compatible) |
+| `@opennextjs/cloudflare`, `wrangler` and `esbuild` (dev dependencies) | Hosting check (added) | Build and preview the app on Cloudflare Workers |
+| `aws4fetch` | 6 | Server-side R2 requests and presigned URLs (R2 is S3-compatible). Chosen over the much larger AWS SDK to stay within the Workers Free size limit. |
 | Email provider SDK (chosen in Phase 1B) | 1B | Invitation email (through Supabase custom SMTP) and notification email |
 
 Supabase Storage and browser-side upload libraries that need storage credentials are not used.
@@ -721,6 +721,14 @@ Each phase ends with lint, a production build, its listed tests, and a check on 
 - **Features:** Add `@opennextjs/cloudflare` and `wrangler`, build the app for Cloudflare Workers, and deploy a private preview to a Workers Free account. Add `.dev.vars` to `.gitignore`.
 - **Testing:** Sign-in, `proxy.ts` session refresh, Server Actions, redirects, and cookies work on Workers. Measure the compressed Worker size and per-request CPU time against Workers Free limits.
 - **Confirm before moving on:** The app runs correctly on Workers Free, or the specific incompatibility is reported to the owner before more features are built on top of it.
+- **Status: complete (2026-09-27), compatible with warnings.** Tested locally only (no Cloudflare account, nothing deployed) with `@opennextjs/cloudflare` 1.20.6 and `wrangler` 4.141 in Wrangler's local Workers runtime:
+  - `proxy.ts` ran on Workers: signed-out redirects with the `next` path, public routes, and static assets all worked.
+  - A sign-in Server Action ran inside the Worker, called Supabase Auth, and returned the correct wrong-password message. Field validation messages also worked.
+  - Fixed during the check: `/auth/deactivated` now uses a relative redirect, because Route Handlers on Workers see an internal `localhost` host. ESLint and TypeScript now ignore `.open-next` and `.wrangler`. `esbuild` is a direct dev dependency, because the adapter imports it without declaring it.
+  - **Warning:** OpenNext reports Node.js middleware (which Next.js 16 `proxy.ts` always uses) as experimental on Cloudflare and not officially maintained. It worked in every test. If it breaks in a future release, the fallback is the deprecated `middleware.ts` on the edge runtime.
+  - **Warning:** OpenNext is not fully supported on Windows. Local Windows builds worked, but production builds should run on Linux (GitHub Actions or Cloudflare Workers Builds).
+  - **Size budget:** the Worker is 2,551 KiB compressed (11,064 KiB uncompressed) against the Workers Free limit of 3 MiB compressed, about 83% used before any feature work. Later phases must keep dependencies small. R2 signing will use `aws4fetch` instead of the AWS SDK for this reason, and the size is re-measured with `wrangler deploy --dry-run` at the end of every phase.
+  - **Not yet measurable:** per-request CPU time. The local runtime does not enforce or report the Workers Free CPU limit. It is measured after the first real deployment.
 
 ### Phase 2: Workflow templates and seed of the approved workflow
 

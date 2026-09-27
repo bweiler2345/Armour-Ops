@@ -1,0 +1,19 @@
+{
+	// Cloudflare Workers configuration for Armour Ops, built with OpenNext
+	// (@opennextjs/cloudflare). Used for local Workers previews only until
+	// deployment is approved. No Cloudflare account or resources are required
+	// for `npm run cf:build` or `npm run cf:preview`.
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "armour-ops",
+	"main": ".open-next/worker.js",
+	"compatibility_date": "2026-09-01",
+	"compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+	"assets": {
+		"directory": ".open-next/assets",
+		"binding": "ASSETS"
+	}
+	// Not added yet, because every page renders per request and no images are
+	// optimized: the R2 incremental cache, the self-reference service binding,
+	// and the Images binding from the OpenNext template. Add them only if the
+	// app starts using ISR, revalidation, or next/image optimization.
+}

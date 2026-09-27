@@ -64,6 +64,10 @@ To preview on an iPhone connected to the same Wi-Fi network, open `http://<your-
 | `npm test`          | Runs the unit tests                                     |
 | `npm run build`     | Creates an optimized production build                   |
 | `npm run start`     | Serves the production build (after `build`)             |
+| `npm run cf:build`  | Builds the app for Cloudflare Workers with OpenNext     |
+| `npm run cf:preview`| Builds for Workers and runs it locally in Wrangler      |
+
+The Cloudflare commands run entirely on your computer and need no Cloudflare account. The app will be hosted on Cloudflare Workers (see the implementation plan). Nothing is deployed yet. OpenNext warns that it is not fully supported on Windows; local builds work, but production builds will run on Linux.
 
 ## Project structure
 
