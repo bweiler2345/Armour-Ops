@@ -137,7 +137,7 @@ What exists:
 - Owners edit Scheduled jobs, make them available, and return them to Scheduled. Every change is kept in the job's history.
 - The Jobs screen shows real jobs in My Current Jobs, Other Active Jobs, Available Jobs, Scheduled Jobs, and Completed Jobs. Employees have read-only access.
 
-**Phase 4: claiming and job teams — built; waiting for the owner to run the Phase 4 database update** (see `docs/SUPABASE_SETUP.md`, step 11).
+**Phase 4: claiming and job teams — complete and verified against the live Supabase project.** Claiming, joining, the join setting, owner additions and removals, lead replacement, team history, deactivation, and read-only access were tested successfully; simultaneous-claim protection is covered by the database tests. Setup steps are in `docs/SUPABASE_SETUP.md`, step 11.
 
 - Employees claim Available jobs (the first claim becomes the lead) and join in-progress jobs when the owner allows joining.
 - The owner adds and removes team members, changes the lead, and turns joining on or off. A lead with teammates can only be removed by naming a new lead.
