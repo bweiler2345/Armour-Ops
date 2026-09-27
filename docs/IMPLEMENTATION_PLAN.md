@@ -104,7 +104,7 @@ Next.js 16 conventions that affect this plan (from `node_modules/next/dist/docs/
 | R2 account ID, access key ID, secret access key, bucket name | Server environment only, read only by `src/lib/r2.ts` (`server-only`) | Never in browser code or the repository |
 | Email provider API key (Phase 7 owner notifications only) | Server environment only | Never in the repository |
 
-Server secrets for the deployed app are stored as Cloudflare Workers secrets. Secrets for the weekly backup job are stored as encrypted GitHub Actions secrets. Local Workers preview files (`.dev.vars`) are added to `.gitignore` when hosting is set up.
+OpenNext copies every variable from the `.env*` files into the Worker bundle. `npm run cf:build` therefore runs `scripts/cf-protect-secrets.mjs` afterwards. It keeps only `NEXT_PUBLIC_` variables in the bundled env module, then scans the whole `.open-next` output for the value of every server-only variable and fails the build (naming the variable, never printing the value) if one is found. Server secrets for the deployed app are stored as Cloudflare Workers secrets. Secrets for the weekly backup job are stored as encrypted GitHub Actions secrets. Local Workers preview files (`.dev.vars`) are added to `.gitignore` when hosting is set up.
 
 `.env.example` lists variable names with placeholder values only. No real names, email addresses, or credentials appear in the repository, documentation, mock data, migrations, or seed files.
 
@@ -468,7 +468,7 @@ src/
   lib/
     supabase/server.ts             server client (cookies)
     supabase/browser.ts            browser client (realtime only)
-    supabase/admin.ts              service-role client, server-only, Team actions only
+    supabase/admin.ts              secret-key admin client, server-only, Team actions only
     r2.ts                          R2 client and presigning, server-only
     email.ts                       email provider client for owner notifications (Phase 7), server-only
     dal.ts                         requireUser(), requireOwner()

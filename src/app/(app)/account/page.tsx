@@ -2,9 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ChevronRightIcon, SignOutIcon } from "@/components/Icons";
 import PageHeading from "@/components/PageHeading";
+import TemporaryPasswordReminder from "@/components/TemporaryPasswordReminder";
 import { signOut } from "@/lib/auth/actions";
 import { roleLabel } from "@/lib/auth/roles";
 import { requireUser } from "@/lib/dal";
+import ChangePasswordForm from "./ChangePasswordForm";
 
 export const metadata: Metadata = {
   title: "Account · Armour Ops",
@@ -26,6 +28,7 @@ export default async function AccountPage() {
   return (
     <>
       <PageHeading title="Account" />
+      {user.mustChangePassword && <TemporaryPasswordReminder onAccountPage />}
 
       <section className="rounded-3xl border border-charcoal-800 bg-charcoal-900 p-6">
         <div className="flex items-center gap-4">
@@ -58,10 +61,12 @@ export default async function AccountPage() {
         </Link>
       )}
 
+      <ChangePasswordForm />
+
       <form action={signOut}>
         <button
           type="submit"
-          className="mt-4 flex min-h-16 w-full items-center justify-center gap-3 rounded-2xl border border-charcoal-700 bg-charcoal-900 text-lg font-semibold text-white transition hover:border-red-400/50 hover:text-red-300 active:scale-[0.98]"
+          className="mt-6 flex min-h-16 w-full items-center justify-center gap-3 rounded-2xl border border-charcoal-700 bg-charcoal-900 text-lg font-semibold text-white transition hover:border-red-400/50 hover:text-red-300 active:scale-[0.98]"
         >
           <SignOutIcon className="h-6 w-6" />
           Sign Out

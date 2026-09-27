@@ -64,7 +64,7 @@ To preview on an iPhone connected to the same Wi-Fi network, open `http://<your-
 | `npm test`          | Runs the unit tests                                     |
 | `npm run build`     | Creates an optimized production build                   |
 | `npm run start`     | Serves the production build (after `build`)             |
-| `npm run cf:build`  | Builds the app for Cloudflare Workers with OpenNext     |
+| `npm run cf:build`  | Builds for Cloudflare Workers, then strips and scans for server secrets |
 | `npm run cf:preview`| Builds for Workers and runs it locally in Wrangler      |
 
 The Cloudflare commands run entirely on your computer and need no Cloudflare account. The app will be hosted on Cloudflare Workers (see the implementation plan). Nothing is deployed yet. OpenNext warns that it is not fully supported on Windows; local builds work, but production builds will run on Linux.
@@ -83,17 +83,20 @@ src/
       jobs/               Jobs screen
       weekly-setup/       Weekly Setup screen
       account/            Account screen and sign-out
-      owner/              Owner-only area (placeholder)
+      owner/              Owner-only area: dashboard placeholder and Team screen
     globals.css           Color palette and global styles
   components/             Shared UI (header, bottom nav, job card, icons)
   lib/
     dal.ts                requireUser() and requireOwner(): the auth check every page and action uses
-    auth/                 Sign-in action, validation, roles, safe redirects (with unit tests)
-    supabase/             Supabase clients for the server and proxy
+    auth/                 Sign-in, validation, roles, safe redirects, temporary passwords (with unit tests)
+    actions/              Server Actions for the Team screen and password changes
+    team/                 Team screen types
+    supabase/             Supabase clients for the server, proxy, and server-only admin tasks
     database.types.ts     Database types (hand-written until the Supabase CLI is set up)
     mock-data.ts          Temporary sample jobs and trailers
 supabase/
   migrations/             Database schema and security rules
+scripts/                  Build helpers (Worker secret protection)
 docs/                     Product spec, implementation plan, Supabase setup
 ```
 
@@ -107,7 +110,15 @@ What exists:
 - `owner` and `employee` roles stored in the database, with Row Level Security.
 - Every page requires sign-in. Signed-out visitors are redirected to the sign-in screen and returned to the page they wanted afterwards.
 - Owner-only pages are blocked for employees. Deactivated accounts are signed out.
-- A real Account screen and working Sign Out.
+- A real Account screen with Change Password and a working Sign Out.
+
+**Phase 1B: Team screen — built; waiting for the owner to run the database update and add the server secret key** (see `docs/SUPABASE_SETUP.md`, step 8).
+
+- Owner-only Team screen at `/owner/team`, with active and inactive accounts listed separately.
+- The owner creates employee accounts. Armour Ops generates a temporary password on the server and shows it once, with a Copy Password button, for the owner to text to the employee. Temporary passwords are never stored or logged.
+- The owner can reset a forgotten password (a new one-time temporary password), and deactivate or reactivate accounts, each after a confirmation. Owners cannot deactivate their own account, and the database refuses to deactivate the last active owner.
+- Account history records creation, password resets, deactivation, and reactivation without any password.
+- Everyone can change their own password on the Account screen. Users with a temporary password see a reminder.
 - The Jobs and Weekly Setup screens still use fictional sample data from `src/lib/mock-data.ts`. They are not real employees or customers.
 
-Not built yet: the Team screen (owner-created accounts with temporary passwords) and password changes, the job workflow, photo and video uploads, Weekly Setup checklists, notifications, and deployment. See the implementation plan for the order.
+Not built yet: role changes on the Team screen, the job workflow, photo and video uploads, Weekly Setup checklists, notifications, and deployment. See the implementation plan for the order.

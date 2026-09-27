@@ -21,7 +21,7 @@ export const MESSAGES = {
   unknown: "Something went wrong signing in. Try again in a moment.",
 } as const;
 
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+export const EMAIL_PATTERN =/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export type SignInValidation =
   | { ok: true; email: string; password: string }

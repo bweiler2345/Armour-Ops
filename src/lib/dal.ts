@@ -15,6 +15,7 @@ export type CurrentUser = {
   email: string | null;
   fullName: string;
   role: AppRole;
+  mustChangePassword: boolean;
 };
 
 export type Session =
@@ -31,9 +32,11 @@ export const getSession = cache(async (): Promise<Session> => {
   if (error || !claims?.sub) return { status: "signed_out" };
 
   // Role and active flag come from the database, never from the token.
+  // select("*") keeps sign-in working even before a newer migration adds
+  // columns (a missing column in the list would fail the whole query).
   const { data: profile } = await supabase
     .from("profiles")
-    .select("full_name, role, active")
+    .select("*")
     .eq("id", claims.sub)
     .maybeSingle();
 
@@ -48,6 +51,7 @@ export const getSession = cache(async (): Promise<Session> => {
       email: typeof claims.email === "string" ? claims.email : null,
       fullName: profile.full_name,
       role: profile.role,
+      mustChangePassword: profile.must_change_password === true,
     },
   };
 });

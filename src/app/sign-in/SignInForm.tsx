@@ -1,12 +1,9 @@
 "use client";
 
-import { useActionState, useState } from "react";
-import {
-  AlertIcon,
-  EyeIcon,
-  EyeOffIcon,
-  SpinnerIcon,
-} from "@/components/Icons";
+import { useActionState } from "react";
+import { fieldClass } from "@/components/fieldClass";
+import { AlertIcon, SpinnerIcon } from "@/components/Icons";
+import PasswordField from "@/components/PasswordField";
 import { signIn } from "@/lib/auth/actions";
 import type { SignInState } from "@/lib/auth/sign-in";
 
@@ -20,7 +17,6 @@ export default function SignInForm({
   disabled: boolean;
 }) {
   const [state, formAction, pending] = useActionState(signIn, initialState);
-  const [showPassword, setShowPassword] = useState(false);
   const emailError = state.fieldErrors?.email;
   const passwordError = state.fieldErrors?.password;
 
@@ -71,50 +67,14 @@ export default function SignInForm({
         )}
       </div>
 
-      <div>
-        <label
-          htmlFor="password"
-          className="mb-2 block text-[15px] font-semibold text-white"
-        >
-          Password
-        </label>
-        <div className="relative">
-          <input
-            id="password"
-            name="password"
-            type={showPassword ? "text" : "password"}
-            autoComplete="current-password"
-            autoCapitalize="none"
-            autoCorrect="off"
-            spellCheck={false}
-            required
-            disabled={disabled || pending}
-            aria-invalid={passwordError ? true : undefined}
-            aria-describedby={passwordError ? "password-error" : undefined}
-            className={`${fieldClass(Boolean(passwordError))} pr-16`}
-          />
-          <button
-            type="button"
-            onClick={() => setShowPassword((shown) => !shown)}
-            disabled={disabled}
-            aria-label={showPassword ? "Hide password" : "Show password"}
-            aria-pressed={showPassword}
-            aria-controls="password"
-            className="absolute inset-y-0 right-0 flex w-16 items-center justify-center rounded-r-2xl text-charcoal-300 transition hover:text-white active:scale-95 disabled:opacity-40"
-          >
-            {showPassword ? (
-              <EyeOffIcon className="h-7 w-7" />
-            ) : (
-              <EyeIcon className="h-7 w-7" />
-            )}
-          </button>
-        </div>
-        {passwordError && (
-          <p id="password-error" className="mt-2 text-[15px] text-red-300">
-            {passwordError}
-          </p>
-        )}
-      </div>
+      <PasswordField
+        id="password"
+        name="password"
+        label="Password"
+        autoComplete="current-password"
+        error={passwordError}
+        disabled={disabled || pending}
+      />
 
       <button
         type="submit"
@@ -129,11 +89,3 @@ export default function SignInForm({
   );
 }
 
-function fieldClass(invalid: boolean) {
-  // 17px text keeps iOS Safari from zooming in when a field is focused.
-  return `block min-h-16 w-full rounded-2xl border bg-charcoal-800 px-4 text-[17px] text-white placeholder:text-charcoal-400 transition outline-none focus:ring-2 disabled:opacity-60 ${
-    invalid
-      ? "border-red-400/70 focus:border-red-400 focus:ring-red-400/30"
-      : "border-charcoal-700 focus:border-gold-400 focus:ring-gold-400/30"
-  }`;
-}
