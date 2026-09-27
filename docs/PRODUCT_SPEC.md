@@ -7,7 +7,7 @@ Armour Ops is a private, mobile-first web application for Armour Floors employee
 Its purposes are to:
 
 1. Give employees a clear visual workflow for every flooring job.
-2. Allow employees to claim jobs and track progress.
+2. Allow employees to claim and join jobs and track progress.
 3. Require verification, pictures, videos, or notes at important steps.
 4. Allow the owner to monitor job progress remotely.
 5. Separate employee preparation work from owner-controlled coating installations.
@@ -23,33 +23,56 @@ The owner can:
 
 - Create and edit jobs.
 - Enter job information.
-- View available, claimed, active, blocked, and completed jobs.
-- See which employee claimed each job.
+- Make a Scheduled job available, and return an unassigned job to Scheduled.
+- View scheduled, available, active, and completed jobs.
+- See the lead employee and every assigned employee on each job.
+- Add employees to a job, remove employees from a job, and change the lead employee.
+- Turn a job’s “Allow Employees to Join” setting on or off.
 - View completed steps and timestamps.
 - View submitted pictures, videos, notes, and verification responses.
 - Add, remove, reorder, skip, reopen, or edit steps.
 - Add custom job steps.
-- Release or override a claimed job.
 - Mark Base Coat Installed.
 - Mark Top Coat Installed.
+- Review a job and select Mark Job Complete.
 - Monitor live job progress.
+- Receive in-app and email notifications.
 - View Weekly Setup submissions and trailer shortages.
+- Manage employee accounts on the Team screen.
 
 ### Employee
 
 Employees can:
 
-- View available jobs.
-- View active jobs.
+- View all jobs and their progress. Employees not assigned to a job have read-only access to it.
 - Claim an available job.
-- Open a claimed job.
+- Join an active job when the owner has turned on “Allow Employees to Join.”
+- Belong to more than one active job at the same time.
+- Open their assigned jobs.
 - View the current stage and next required step.
 - Open visual instructions for each step.
 - Complete verification checklists.
 - Upload required pictures or videos.
 - Enter required notes or quantities.
-- Report a problem without falsely completing a step.
+- Check Caulking Complete and Baseboard Complete when applicable.
 - Complete Weekly Setup trailer checks.
+
+When something goes wrong on a job, employees text or call the owner. In-app problem reporting is a future feature.
+
+## Accounts and Team management
+
+- Employees and the owner sign in with email and password.
+- There is no public sign-up. The owner creates every employee account.
+- The owner manages accounts on an owner-only Team screen. The Team screen will allow the owner to:
+  - Add an employee’s name and email.
+  - Send an account invitation.
+  - Resend an expired invitation.
+  - See whether the invitation was accepted.
+  - Deactivate or reactivate an employee.
+  - View the employee’s role.
+  - Change roles later if needed.
+- Invitations and administrative account changes happen only through a trusted server-only path. No administrative secret is ever exposed in browser code.
+- Real owner or employee names and email addresses are never placed in the public repository, documentation, mock data, migrations, or seed files.
 
 ## Job creation
 
@@ -63,12 +86,14 @@ The owner creates a job with:
 - General notes
 - Caulking required toggle
 - Baseboard required toggle
+- Allow Employees to Join setting
 - Custom steps
 
 Defaults:
 
 - Caulking is selected by default.
 - Baseboard is not selected by default.
+- New jobs begin as Scheduled.
 
 The owner can add a custom step and determine:
 
@@ -82,13 +107,28 @@ The owner can add a custom step and determine:
 - Optional structured inputs (see “Structured inputs” below)
 - Final confirmation text
 
-## Job claiming
+## Making jobs available
 
-- Available jobs can be claimed by an employee.
-- Claiming records the employee and timestamp.
-- A claimed job becomes that employee’s active job.
-- The owner can release or override a claim.
+- New jobs begin as Scheduled.
+- The owner manually selects Make Available to change a job to Available to Claim.
+- Employees cannot claim or join a Scheduled job.
+- The owner can return an unassigned job to Scheduled.
+- Jobs are never released automatically based on their scheduled date.
+
+## Job teams
+
+- The first employee to claim an available job becomes its lead employee. Only one employee can become the initial lead.
+- The owner can add one or more additional employees to the job.
+- Each job has an owner-controlled “Allow Employees to Join” setting.
+  - When it is on, another employee can join the job without waiting for the owner.
+  - When it is off, only the owner can add another employee.
+- Every assigned employee can update the job, complete steps, enter checklist responses, enter structured inputs, add notes, and upload evidence.
+- Every action records the specific employee who performed it.
+- Only one employee can actively edit a particular step at one time, to prevent conflicting updates.
+- The owner can remove an employee from the job without deleting that employee’s previous activity.
+- Claiming, joining, being added, and being removed are each recorded with the employee and timestamp.
 - Employees cannot silently transfer a job to another employee.
+- Employees can be assigned to more than one active job at the same time. There is no one-active-job limit.
 
 ## Job statuses
 
@@ -103,7 +143,8 @@ The owner can add a custom step and determine:
 - Top Coat Installed
 - Completion Work in Progress
 - Complete
-- Blocked / Problem Reported
+
+The “Blocked / Problem Reported” status belongs to the future problem-reporting feature and is not part of the first version.
 
 Each job card should show:
 
@@ -112,11 +153,20 @@ Each job card should show:
 - Square footage
 - Flake color
 - Scheduled date
-- Assigned employee
+- Lead employee and assigned employees
 - Current status
 - Current step
 - Overall progress
 - Last activity time
+
+## Employee Jobs screen
+
+The employee Jobs screen contains:
+
+- My Current Jobs: every job the employee is assigned to that is not yet complete.
+- Other Active Jobs: jobs in progress that the employee is not assigned to, shown read-only, with a Join button when joining is allowed.
+- Available Jobs: jobs that can be claimed.
+- Completed Jobs.
 
 ## General step behavior
 
@@ -126,6 +176,7 @@ Each workflow step can contain:
 - Goal
 - Visual reference image
 - Ordered instructions
+- Reference lists
 - Final checklist
 - Required proof
 - Structured inputs
@@ -133,7 +184,6 @@ Each workflow step can contain:
 - Completion timestamp
 - Employee who completed it
 - Employee notes
-- Problem-report option
 
 Rules:
 
@@ -144,6 +194,7 @@ Rules:
 - The owner can reopen a completed step.
 - Reopened steps retain their original history.
 - Progress should autosave.
+- Every Final check item must be checked before a step can be completed, unless this specification says otherwise. Reference lists do not need to be checked item by item.
 - The system should be designed for future offline saving and later synchronization, but offline functionality is not required in the first version.
 
 ## Structured inputs
@@ -153,6 +204,52 @@ Rules:
 - Each structured input can define a label, whether it is required, an optional unit, and selection choices.
 - A step can contain more than one structured input.
 - Custom steps must support these structured input types.
+
+## Pictures and videos
+
+Pictures:
+
+- Accept JPEG, HEIC/HEIF, and PNG.
+- Compress pictures before upload, targeting approximately 1–5 MB after compression.
+- Maximum original picture size: 25 MB.
+- Maximum compressed picture size: 5 MB.
+
+Videos:
+
+- Accept MOV and MP4.
+- Maximum length: 3 minutes.
+- Maximum size: 300 MB.
+- Employee iPhones should record in the Most Compatible format.
+- Recommended recording setting: 1080p at 30 fps.
+- Show the file size before upload.
+- Use resumable uploads so an upload can continue when service drops.
+
+Storage:
+
+- All employee-uploaded pictures and videos are stored privately and viewed only through short-lived authorized links.
+- Job pictures and videos are retained for five years after job completion.
+
+These values are approved for version one.
+
+## Owner notifications
+
+The owner receives an in-app notification and an email when:
+
+- Initial Prep is complete and the job is Waiting for Base-Coat Installation.
+- Top-Coat Prep is complete and the job is Waiting for Top-Coat Installation.
+
+The app keeps a history of in-app notifications.
+
+Each email includes:
+
+- Client name
+- Address
+- Completed stage
+- Employee
+- Completion time
+- Link to the job
+
+Text message and phone push notifications are future features.
 
 # Stage 1: Initial Prep
 
@@ -375,6 +472,8 @@ Upload one slow video showing the entire cleaned floor, including the perimeter 
 
 ## Step 9: Set Up for Base-Coat Installation
 
+> The mixing-station checklist and inside-work-area checklist in this step are visual reference lists. Employees do not check each item. “Second weenie roller when needed” is reference text. The final action is an instruction. Employees complete only the Final check, the required proof, and the confirmation for the overall setup step.
+
 ### Goal
 
 Organize the mixing station and application tools so the installation can begin immediately.
@@ -560,6 +659,8 @@ Upload one slow video showing the entire clean floor, including the joints and p
 
 ## Step 5: Set Up for Top-Coat Installation
 
+> The mixing-station checklist and inside-work-area checklist in this step are visual reference lists. Employees do not check each item. “Second weenie roller when needed” is reference text. Employees complete only the Final check, the required proof, and the confirmation for the overall setup step.
+
 ### Goal
 
 Organize the mixing station and application tools so the top-coat installation can begin immediately.
@@ -628,24 +729,56 @@ For the first version:
 - Show a simple “Baseboard Complete” checkbox only when baseboard was selected on the job.
 - Do not add detailed instructions, sub-checklists, or proof requirements yet.
 - Once all applicable completion items are checked, allow the job to be marked Complete.
+- Any assigned employee can check “Caulking Complete” when applicable.
+- Any assigned employee can check “Baseboard Complete” when applicable.
+- Only the owner can select “Mark Job Complete.”
+- Before completing a job, the owner can review its completed steps, evidence, completion items, and activity history.
 
 # Weekly Setup
 
 The navigation label is “Weekly Setup,” not “Monday Check.”
 
-Weekly Setup contains one inventory checklist for each trailer.
+Weekly Setup contains one inventory checklist for each trailer. Both trailers use the same inventory list.
 
 Each submission records:
 
 - Trailer
 - Employee
 - Date and time
-- Checked items
-- Missing items
-- Damaged items
+- Each item’s target quantity, usable quantity on hand, status, and shortage
+- Optional employee note for each item
 - Restock notes
 
 The owner can review the current condition of both trailers.
+
+## Item statuses
+
+Each inventory item has one of three statuses:
+
+- Ready
+- Missing
+- Need More
+
+For items with a numeric quantity, each item stores:
+
+- Target quantity
+- Unit or item label when useful
+- Usable quantity on hand
+- Optional employee note
+
+The status is calculated automatically from the count. Employees do not choose it manually:
+
+- If the usable quantity is zero, the status is Missing.
+- If the usable quantity is greater than zero but below the target, the status is Need More.
+- If the usable quantity meets or exceeds the target, the status is Ready.
+- When the status is Need More, the shortage is calculated and displayed automatically. Example: target 30 brushes, usable quantity 12, display “Need 18 More.”
+- Broken or unusable items are not included in the usable quantity and can be explained in the note.
+
+For items without a practical numeric quantity, such as “Rags stocked,” the employee selects Ready, Missing, or Need More and can add a note.
+
+The target quantity for each item is the number in its name in the list below (for example, “Two full fuel cans” has a target of 2). Items listed without a number have a target of 1. “Rags stocked” has no numeric target.
+
+Every submission keeps its historical counts so Weekly Setup can later grow into a fuller inventory-tracking system.
 
 ## Required inventory for each trailer
 
@@ -720,3 +853,13 @@ Do not implement these until specifically requested:
 - Automatic scheduling
 - Customer access
 - App Store distribution
+- In-app problem reporting, including:
+  - A problem-report form on a job or step, with notes, pictures, or videos
+  - Blocking and non-blocking reports
+  - The “Blocked / Problem Reported” job status
+  - Owner notifications for problem reports
+  - Owner resolution of reports
+- Text message notifications
+- Phone push notifications
+- Archive and export of job pictures, videos, and records
+- Fuller inventory tracking built on Weekly Setup history, such as usage trends and restocking lists
