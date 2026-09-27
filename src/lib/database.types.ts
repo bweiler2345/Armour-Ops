@@ -34,7 +34,16 @@ type JobActivityType =
   | "proof_uploaded"
   | "proof_removed"
   | "milestone_installed"
-  | "job_completed";
+  | "job_completed"
+  | "custom_step_added"
+  | "custom_step_removed"
+  | "step_reopened"
+  | "reference_picture_added"
+  | "reference_picture_archived"
+  | "owner_joined_working_team"
+  | "owner_left_working_team";
+type ReferenceTarget = "workflow_step" | "library_item" | "job_step";
+type Row<T> = { Row: T; Insert: never; Update: never; Relationships: [] };
 type BlockKind = "ordered_list" | "reference_list" | "checklist";
 type AssignmentRole = "lead" | "member";
 type AssignmentMethod = "claimed" | "joined" | "added_by_owner" | "lead_change";
@@ -289,11 +298,76 @@ export type Database = {
           proof_text: string | null;
           confirmation_text: string | null;
           applies_when: "caulking_required" | "baseboard_required" | null;
+          custom_origin: "one_time" | "library_import" | null;
+          source_library_version_id: string | null;
+          added_by: string | null;
+          added_at: string | null;
         };
         Insert: never;
         Update: never;
         Relationships: [];
       };
+      step_library_items: Row<{
+        id: string;
+        current_version: number;
+        created_by: string;
+        created_at: string;
+        archived_at: string | null;
+        archived_by: string | null;
+      }>;
+      step_library_versions: Row<{
+        id: string;
+        item_id: string;
+        version_number: number;
+        title: string;
+        definition: Json;
+        created_by: string;
+        created_at: string;
+      }>;
+      reference_pictures: Row<{
+        id: string;
+        content_type: string;
+        declared_size_bytes: number;
+        size_bytes: number | null;
+        original_file_name: string | null;
+        status: "pending" | "uploaded" | "failed";
+        uploaded_by: string;
+        created_at: string;
+        uploaded_at: string | null;
+        failed_at: string | null;
+        failure_reason: string | null;
+      }>;
+      reference_picture_links: Row<{
+        id: string;
+        picture_id: string;
+        target: ReferenceTarget;
+        workflow_step_id: string | null;
+        library_item_id: string | null;
+        job_id: string | null;
+        job_step_id: string | null;
+        position: number;
+        source_link_id: string | null;
+        added_by: string;
+        added_at: string;
+        archived_at: string | null;
+        archived_by: string | null;
+      }>;
+      job_working_owners: Row<{
+        id: string;
+        job_id: string;
+        owner_id: string;
+        joined_at: string;
+        left_at: string | null;
+      }>;
+      step_reopenings: Row<{
+        id: string;
+        job_id: string;
+        job_step_id: string;
+        previous_attempt_id: string;
+        reason: string;
+        reopened_by: string;
+        reopened_at: string;
+      }>;
       job_milestones: {
         Row: {
           id: string;
@@ -527,6 +601,42 @@ export type Database = {
           current_stage_name: string | null;
           current_step_title: string | null;
           ready_for_owner_completion: boolean;
+          reopened_step_title: string | null;
+        };
+        Relationships: [];
+      };
+      job_working_owner_status: {
+        Row: { job_id: string; owner_id: string; full_name: string; joined_at: string };
+        Relationships: [];
+      };
+      step_reopening_status: {
+        Row: {
+          id: string;
+          job_id: string;
+          job_step_id: string;
+          previous_attempt_id: string;
+          reason: string;
+          reopened_by: string;
+          reopened_by_name: string | null;
+          reopened_at: string;
+        };
+        Relationships: [];
+      };
+      step_attempt_history: {
+        Row: {
+          id: string;
+          job_id: string;
+          job_step_id: string;
+          attempt_number: number;
+          status: "draft" | "completed" | "superseded";
+          started_by: string;
+          started_by_name: string | null;
+          started_at: string;
+          completed_by: string | null;
+          completed_by_name: string | null;
+          completed_at: string | null;
+          employee_notes: string;
+          confirmation_text_shown: string | null;
         };
         Relationships: [];
       };
@@ -677,6 +787,49 @@ export type Database = {
       };
       complete_completion_item: { Args: { p_step: string }; Returns: "completed" | "already_completed" };
       mark_job_complete: { Args: { p_job: string }; Returns: "completed" | "already_complete" };
+      join_job_as_working_owner: { Args: { p_job: string }; Returns: "joined" | "already_joined" };
+      leave_working_team: { Args: { p_job: string }; Returns: "left" | "not_joined" };
+      reopen_step: { Args: { p_step: string; p_reason: string }; Returns: string };
+      custom_step_positions: {
+        Args: { p_job: string };
+        Returns: { stage_id: string; stage_name: string; first_position: number; last_position: number }[];
+      };
+      add_custom_step: {
+        Args: { p_job: string; p_stage: string; p_position: number; p_definition: Json; p_save_to_library: boolean };
+        Returns: string;
+      };
+      import_library_step: {
+        Args: { p_job: string; p_stage: string; p_position: number; p_item: string };
+        Returns: string;
+      };
+      remove_custom_step: { Args: { p_step: string }; Returns: undefined };
+      create_library_item: { Args: { p_definition: Json }; Returns: string };
+      update_library_item: { Args: { p_item: string; p_definition: Json }; Returns: number };
+      archive_library_item: { Args: { p_item: string }; Returns: "archived" | "already_archived" };
+      create_reference_upload: {
+        Args: { p_size: number; p_file_name: string };
+        Returns: { picture_id: string; object_key: string }[];
+      };
+      confirm_reference_upload: {
+        Args: {
+          p_picture: string;
+          p_actor: string;
+          p_object_key: string;
+          p_stored_size: number;
+          p_stored_content_type: string;
+        };
+        Returns: string;
+      };
+      attach_reference_picture: {
+        Args: { p_picture: string; p_target: ReferenceTarget; p_target_id: string };
+        Returns: string;
+      };
+      archive_reference_link: { Args: { p_link: string }; Returns: undefined };
+      move_reference_link: { Args: { p_link: string; p_direction: number }; Returns: undefined };
+      authorize_reference_view: {
+        Args: { p_picture: string; p_actor: string };
+        Returns: { object_key: string; content_type: string }[];
+      };
       add_team_member: { Args: { p_job: string; p_employee: string }; Returns: undefined };
       change_lead: { Args: { p_job: string; p_new_lead: string }; Returns: undefined };
       remove_team_member: {

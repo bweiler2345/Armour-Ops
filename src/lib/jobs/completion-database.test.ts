@@ -361,7 +361,7 @@ describe("Completion Work", () => {
   it("refuses the owner, unassigned, removed, and deactivated employees", async () => {
     const job = await topCoatInstalled();
     const caulking = await item(job, "caulking_complete");
-    await expect(call(owner, "complete_completion_item", caulking)).rejects.toThrow(/active employee/i);
+    await expect(call(owner, "complete_completion_item", caulking)).rejects.toThrow(/Join the job as a Working Owner/);
     await expect(call(outsider, "complete_completion_item", caulking)).rejects.toThrow(
       "Only employees on this job's team can mark Completion Work.",
     );

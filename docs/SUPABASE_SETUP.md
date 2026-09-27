@@ -317,3 +317,52 @@ You need the owner, two active test employees (A and B) on a fictional job's tea
 11. **Mark Job Complete.** As the owner, review the steps, proof, and History, then tap **Mark Job Complete** and confirm. The job becomes **Complete**, the page says it is read only and shows the date its pictures and videos are kept until (five years later), and it moves to **Complete** on the Jobs screens (owner and employees).
 12. **Read only.** As A, open any step of the complete job: nothing can be changed or uploaded. As the owner, there are no milestone, team-change, or completion buttons. Completed proof still opens for the owner and the team.
 13. **Options off (optional).** On a job created with **Baseboard off**, Baseboard Complete shows **Not applicable** and the job is ready for the owner once Caulking Complete is done. With both off, the job is ready for Mark Job Complete right after Top Coat Installed. These combinations are also covered by the automated database tests.
+
+## 15. Phase 8: Reopening, custom steps, the Custom Step Library, reference pictures, and Working Owner
+
+No Cloudflare R2 changes are needed. Reference pictures use the same private bucket, CORS policy, and API token as proof (step 13), under their own `reference/` keys.
+
+### 15.1 Run the Phase 8 database update
+
+The Phase 7 file (step 14.1) must already have been run. In **SQL Editor**, run `supabase/migrations/20260927090000_custom_steps_references_reopening.sql` (new query, paste the whole file, **Run**). It should finish with "Success. No rows returned." Restart `npm run dev` afterwards.
+
+### 15.2 Try it
+
+You need the owner, two active test employees (A and B), one employee (C) not on the job, and a phone. Use fictional jobs and test pictures only.
+
+**Custom Step Library**
+
+1. As the owner, open **Owner Dashboard › Custom Step Library › New Library Step**. Create "Sand Stairs" with two instructions, a reference list, one required and one optional Final check item, a required number entry, a single-select entry, picture proof, and a confirmation statement. Save. The preview shows everything; the page says version 1.
+2. Add a reference picture to it (camera or library). It shows under **Reference pictures** with move and **Remove** buttons.
+3. Select **Edit**, change the title, and save. The page shows version 2 and both versions under **Versions**.
+4. Create a second library step, then **Archive** it (confirm). It moves to **Archived**, has no Edit button, and is not offered for import.
+5. As an employee, visit `/owner/library`: you're sent back to Jobs.
+
+**Custom steps on jobs**
+
+6. Create a Scheduled job. On its owner page, under **Custom steps**, select **Add Custom Step**: choose **From Library** (Sand Stairs, version 2), Initial Prep, and a position, and add it. It appears as "Imported library step" in the list and as "Library step" on the workflow map. Add a **One-Time Step** ("Grind Down Lip") with **Also save to the Custom Step Library** checked; the library now lists it.
+7. While the job is still Scheduled, **Remove** one custom step (confirm). It disappears and History records it.
+8. Edit the library item again (version 3). Open the job's imported step: it still shows version 2's content.
+9. Make the job available; A claims it and B joins. Complete a couple of steps. Add another custom step: only positions after the started work are offered, and a confirmation appears before adding. Installation milestones and Completion Work are never offered.
+10. As A, work the custom step: the reference picture shows near the instructions (marked as guidance, not proof), Complete Step stays locked until the checks, entries, and picture proof are done, and the next step unlocks afterwards.
+
+**Reference pictures**
+
+11. **Workflow › Reference Pictures for Standard Steps**: add a picture to Grind Floor. Create a new job: its Grind Floor shows the picture. An older job's Grind Floor doesn't.
+12. On an unfinished step of an active job, add a job-only picture from the step page. History records it. On a completed step, no add or remove controls appear.
+13. As C (not on the job), open that step: the job-only picture doesn't load. Standard-step pictures do.
+
+**Owner/Working Member**
+
+14. On the active job's owner page, select **Join Job as Working Owner** (confirm). The team list on the employee job page shows you as "Owner · Working Member"; A is still Lead.
+15. As the owner, open the current step: you can check items, fill in entries, upload proof, and complete it. History shows your name.
+16. Open a step for editing, then try **Leave Working Team**: it asks you to leave the step first. Leave the step, then leave the team (confirm). Your completed work stays attributed to you, and you can no longer change step work.
+17. Before joining (or after leaving), step pages say to join as a Working Owner, and nothing can be changed.
+
+**Reopening**
+
+18. On a completed step, as the owner, select **Reopen Step**. The confirm button stays disabled until a reason is entered. Reopen with a reason.
+19. The step shows **Attempt history** with the earlier attempt (who, when, the reason, its answers, and its proof, which still opens). The new attempt starts empty: every check, entry, and proof is needed again.
+20. While it's reopened: later unstarted steps are locked; if the job is waiting for an installation, the owner page says the reopened step must be redone first and hides the milestone button; Completion Work and Mark Job Complete wait. The job status doesn't move backward.
+21. As A, redo and complete the step. Everything unlocks again, and History shows the reopen and the new completion.
+22. As an employee, no Reopen button appears. On a complete job, no Reopen or custom-step controls appear.

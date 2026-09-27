@@ -46,6 +46,8 @@ export type JobCardData = {
   // Both milestones and all applicable Completion Work are done; waiting for
   // the owner's Mark Job Complete.
   readyForOwnerCompletion: boolean;
+  // A step the owner reopened that the team hasn't redone yet.
+  reopenedStepTitle: string | null;
 };
 
 export function toJobCard(
@@ -79,6 +81,7 @@ export function toJobCard(
     lastActivityAt: job.last_activity_at,
     completedAt: job.completed_at,
     readyForOwnerCompletion: progress?.ready_for_owner_completion ?? false,
+    reopenedStepTitle: progress?.reopened_step_title ?? null,
   };
 }
 
@@ -117,10 +120,18 @@ export type JobDetail = {
     name: string;
     kind: Database["public"]["Tables"]["job_stages"]["Row"]["kind"];
     ownerActionLabel: string | null;
-    steps: { id: string; title: string; kind: "standard" | "completion_item"; appliesWhen: string | null }[];
+    steps: {
+      id: string;
+      title: string;
+      kind: "standard" | "completion_item";
+      appliesWhen: string | null;
+      origin: "standard" | "library" | "one_time";
+    }[];
   }[];
   // Installed milestones by stage key, with who marked them and when.
   milestones: Record<string, { installedByName: string | null; installedAt: string }>;
+  // Owners on the working team (not the employee lead or members).
+  workingOwners: { ownerId: string; name: string }[];
 };
 
 export async function getJobDetail(
@@ -130,15 +141,16 @@ export async function getJobDetail(
   const supabase = await createClient();
   if (!supabase) return { status: "error" };
 
-  const [job, progress, stages, steps, team, milestones] = await Promise.all([
+  const [job, progress, stages, steps, team, milestones, working] = await Promise.all([
     supabase.from("jobs").select("*").eq("id", jobId).maybeSingle(),
     supabase.from("job_progress").select("*").eq("job_id", jobId).maybeSingle(),
     supabase.from("job_stages").select("*").eq("job_id", jobId).order("position"),
     supabase.from("job_steps").select("*").eq("job_id", jobId).order("position"),
     supabase.from("job_team").select("*").eq("job_id", jobId),
     supabase.from("job_milestone_status").select("*").eq("job_id", jobId),
+    supabase.from("job_working_owner_status").select("owner_id, full_name").eq("job_id", jobId),
   ]);
-  if (job.error || progress.error || stages.error || steps.error || team.error || milestones.error) {
+  if (job.error || progress.error || stages.error || steps.error || team.error || milestones.error || working.error) {
     return { status: "error" };
   }
   if (!job.data) return { status: "missing" };
@@ -161,8 +173,14 @@ export async function getJobDetail(
             title: step.title,
             kind: step.kind,
             appliesWhen: step.applies_when,
+            origin: !step.is_custom
+              ? ("standard" as const)
+              : step.custom_origin === "library_import"
+                ? ("library" as const)
+                : ("one_time" as const),
           })),
       })),
+      workingOwners: (working.data ?? []).map((w) => ({ ownerId: w.owner_id, name: w.full_name.trim() || "Owner" })),
       milestones: Object.fromEntries(
         (milestones.data ?? []).map((m) => [
           m.milestone_key,

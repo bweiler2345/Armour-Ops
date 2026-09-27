@@ -2,12 +2,15 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import AutoRefresh from "@/components/AutoRefresh";
+import ConfirmAction from "@/components/ConfirmAction";
+import ReferencePictures from "@/components/ReferencePictures";
+import { reopenStep } from "@/lib/actions/owner";
 import { AlertIcon, CameraIcon, CheckIcon, ChecklistIcon, LockIcon, VideoIcon } from "@/components/Icons";
 import StepStateBadge from "@/components/StepStateBadge";
 import { requireUser } from "@/lib/dal";
 import { formatDateTime, formatTime } from "@/lib/format";
 import { formatBytes, formatDuration } from "@/lib/media/files";
-import { getStepDetail, type StepBlock } from "@/lib/steps/queries";
+import { getStepDetail, type PriorAttempt, type StepBlock } from "@/lib/steps/queries";
 import ClearHoldButton from "./ClearHoldButton";
 import CompletionItemButton from "./CompletionItemButton";
 import StepWorkspace from "./StepWorkspace";
@@ -37,8 +40,11 @@ export default async function StepPage({ params }: PageProps<"/jobs/[jobId]/step
   const { step, status } = detail;
   const open = status.state === "available" || status.state === "in_progress";
   const onTeam = detail.teamIds.includes(user.id);
-  const canWork = user.role === "employee" && onTeam && open && step.kind === "standard";
-  const canComplete = user.role === "employee" && onTeam && status.state === "available" && step.kind === "completion_item";
+  // Employees on the team, or an owner who joined as a Working Owner.
+  const working = (user.role === "employee" && onTeam) || (user.role === "owner" && detail.workingOwnerIds.includes(user.id));
+  const canWork = working && open && step.kind === "standard";
+  const canComplete = working && status.state === "available" && step.kind === "completion_item";
+  const jobComplete = detail.job.status === "complete";
   const checks = detail.blocks
     .filter((b) => b.kind === "checklist")
     .flatMap((b) => b.items);
@@ -60,6 +66,11 @@ export default async function StepPage({ params }: PageProps<"/jobs/[jobId]/step
           <StepStateBadge state={status.state} />
         </div>
         <h1 className="mt-2 text-2xl font-semibold text-white">{step.title}</h1>
+        {detail.origin !== "standard" && (
+          <p className="mt-2 inline-flex rounded-full bg-sky-400/10 px-3 py-1 text-xs font-semibold text-sky-200 ring-1 ring-sky-400/30">
+            {detail.origin === "library" ? "Imported library step" : "One-time custom step"}
+          </p>
+        )}
         {step.kind === "standard" && step.stepsInStage > 0 && (
           <div className="mt-4 flex gap-1.5" aria-hidden>
             {Array.from({ length: step.stepsInStage }, (_, i) => (
@@ -106,10 +117,10 @@ export default async function StepPage({ params }: PageProps<"/jobs/[jobId]/step
         {open && !onTeam && user.role === "employee" && (
           <Banner tone="info">You’re not on this job’s team, so you can view this step but not change it.</Banner>
         )}
-        {open && user.role === "owner" && (
+        {open && user.role === "owner" && !working && (
           <Banner tone="info">
-            Team members complete steps. You can view progress here
-            {status.hold_held_by ? " and clear an edit hold someone left open." : "."}
+            Team members complete steps. To work this step yourself, join the job as a Working Owner from the owner job
+            page. You can view progress here{status.hold_held_by ? " and clear an edit hold someone left open." : "."}
           </Banner>
         )}
         {!canWork && heldByOther && status.hold_expires_at && (
@@ -120,6 +131,17 @@ export default async function StepPage({ params }: PageProps<"/jobs/[jobId]/step
         )}
         {user.role === "owner" && status.hold_held_by && <ClearHoldButton jobId={jobId} stepId={stepId} />}
       </div>
+
+      {step.kind === "standard" && (
+        <ReferencePictures
+          pictures={detail.references}
+          manage={
+            user.role === "owner" && !jobComplete && status.state !== "completed"
+              ? { target: "job_step", targetId: stepId, path: `/jobs/${jobId}/steps/${stepId}` }
+              : undefined
+          }
+        />
+      )}
 
       {step.note && (
         <p className="mt-6 rounded-2xl border-l-4 border-gold-400 bg-gold-900/30 p-4 text-[15px] leading-relaxed text-charcoal-300">
@@ -161,6 +183,30 @@ export default async function StepPage({ params }: PageProps<"/jobs/[jobId]/step
         />
       ) : (
         step.kind === "standard" && <ReadOnlyWork detail={detail} checks={checks} canViewMedia={user.role === "owner" || onTeam} />
+      )}
+
+      {user.role === "owner" && status.state === "completed" && !jobComplete && (
+        <div className="mt-6">
+          <ConfirmAction
+            action={reopenStep.bind(null, jobId, stepId)}
+            label="Reopen Step"
+            title="Reopen this step?"
+            body="The completed attempt, its answers, proof, names, and times stay exactly as they are. The team redoes the step as a new attempt with the same requirements, and later work waits for it."
+            reasonLabel="Reason (required)"
+            confirmLabel="Reopen"
+            busyLabel="Reopening…"
+          />
+        </div>
+      )}
+
+      {detail.priorAttempts.length > 0 && (
+        <PriorAttempts
+          attempts={detail.priorAttempts}
+          checks={checks}
+          inputs={detail.inputs}
+          canViewMedia={user.role === "owner" || onTeam}
+          current={status.attempt_status === "completed" ? "completed" : status.attempt_id ? "in_progress" : "not_started"}
+        />
       )}
 
       {/* Read-only viewers see teammates' saves without refreshing. */}
@@ -370,5 +416,71 @@ function ReadOnlyWork({
         </section>
       )}
     </div>
+  );
+}
+
+// Attempts replaced by reopening, newest first. They never change.
+function PriorAttempts({
+  attempts,
+  checks,
+  inputs,
+  canViewMedia,
+  current,
+}: {
+  attempts: PriorAttempt[];
+  checks: { id: string; text: string }[];
+  inputs: { id: string; label: string }[];
+  canViewMedia: boolean;
+  current: "completed" | "in_progress" | "not_started";
+}) {
+  return (
+    <section aria-labelledby="attempts" className="mt-8">
+      <h2 id="attempts" className="text-lg font-semibold text-white">Attempt history</h2>
+      <p className="mt-1 mb-3 text-sm text-charcoal-400">
+        Current attempt: {current === "completed" ? "completed" : current === "in_progress" ? "in progress" : "not started yet"}. Earlier
+        attempts are kept exactly as they were.
+      </p>
+      <ol className="flex flex-col gap-3">
+        {attempts.map((a) => (
+          <li key={a.id} className="rounded-2xl border border-charcoal-700 bg-charcoal-900/70 p-4">
+            <p className="text-[15px] font-semibold text-white">
+              Attempt {a.number} · earlier attempt (reopened)
+            </p>
+            <p className="text-sm text-charcoal-400">
+              Completed by {a.completedByName || "a team member"}
+              {a.completedAt ? ` · ${formatDateTime(a.completedAt)}` : ""}
+            </p>
+            {a.reopenedAt && (
+              <p className="mt-1 text-sm text-gold-200">
+                Reopened by {a.reopenedByName || "the owner"} · {formatDateTime(a.reopenedAt)}
+                {a.reason ? `: “${a.reason}”` : ""}
+              </p>
+            )}
+            {checks.length > 0 && (
+              <p className="mt-2 text-sm text-charcoal-300">
+                Final check: {checks.filter((c) => a.checked.includes(c.id)).length} of {checks.length} checked
+              </p>
+            )}
+            {inputs.map((input) => (
+              <p key={input.id} className="text-sm text-charcoal-300">
+                {input.label}: {a.answers[input.id] || "not entered"}
+              </p>
+            ))}
+            {a.notes && <p className="mt-1 text-sm whitespace-pre-line text-charcoal-300">Notes: {a.notes}</p>}
+            {canViewMedia && a.media.length > 0 && (
+              <ul className="mt-2 flex flex-wrap gap-2">
+                {a.media.map((m) => (
+                  <li key={m.id}>
+                    <a href={`/media/${m.id}`} target="_blank" rel="noreferrer" className="block rounded-lg bg-charcoal-800 px-3 py-2 text-sm text-gold-200">
+                      {m.mediaType === "video" ? "Video proof" : "Picture proof"}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </li>
+        ))}
+      </ol>
+    </section>
   );
 }

@@ -147,7 +147,7 @@ describe("who can work steps", () => {
     const job = await teamJob();
     const first = await step(job, "initial_prep", "grind_floor");
     await expect(hold(outsider, first)).rejects.toThrow(/Only employees on this job/);
-    await expect(hold(owner, first)).rejects.toThrow(/Only an active employee/);
+    await expect(hold(owner, first)).rejects.toThrow(/Join the job as a Working Owner/);
 
     const former = await createUser(db, { role: "employee" });
     await call(owner, "add_team_member", job, former);

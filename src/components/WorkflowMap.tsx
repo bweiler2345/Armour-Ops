@@ -106,6 +106,7 @@ export default function WorkflowMap({
                       number={i + 1}
                       title={step.title}
                       completionItem={step.kind === "completion_item"}
+                      origin={step.origin}
                       optionLabel={step.appliesWhen === "baseboard_required" ? "Baseboard" : "Caulking"}
                       topCoatInstalled={milestoneState(job.status, "top_coat_installation") === "installed"}
                       status={statuses?.get(step.id)}
@@ -126,6 +127,7 @@ function StepRow({
   number,
   title,
   completionItem,
+  origin,
   optionLabel,
   topCoatInstalled,
   status,
@@ -134,6 +136,7 @@ function StepRow({
   number: number;
   title: string;
   completionItem: boolean;
+  origin: "standard" | "library" | "one_time";
   optionLabel: string;
   topCoatInstalled: boolean;
   status: WorkflowStepStatus | undefined;
@@ -191,6 +194,11 @@ function StepRow({
         <span className="min-w-0 flex-1">
           <span className={`block text-[16px] font-semibold ${state === "locked" || state === "not_applicable" ? "text-charcoal-400" : "text-white"}`}>
             {title}
+            {origin !== "standard" && (
+              <span className="ml-2 rounded-full bg-sky-400/10 px-2 py-0.5 align-middle text-xs font-semibold text-sky-200">
+                {origin === "library" ? "Library step" : "Custom step"}
+              </span>
+            )}
           </span>
           <span className={`block text-sm ${current ? "text-gold-300" : "text-charcoal-400"}`}>{sub}</span>
         </span>

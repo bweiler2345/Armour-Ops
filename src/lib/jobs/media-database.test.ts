@@ -275,7 +275,7 @@ describe("who may upload", () => {
       /Only employees on this job/,
     );
     await expect(startUpload(owner, grind, fake, { requirement: req.id, type: "video" })).rejects.toThrow(
-      /Only an active employee/,
+      /Join the job as a Working Owner/,
     );
     const former = await createUser(db, { role: "employee" });
     await as(db, { userId: owner }, () => rows(`select public.add_team_member($1, $2)`, [job, former]));

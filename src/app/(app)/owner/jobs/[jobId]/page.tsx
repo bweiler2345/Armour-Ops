@@ -2,12 +2,15 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import AutoRefresh from "@/components/AutoRefresh";
+import ConfirmAction from "@/components/ConfirmAction";
 import { AlertIcon, CheckIcon, KeyIcon } from "@/components/Icons";
 import { JobSummary } from "@/components/JobDetails";
 import { SectionHeading } from "@/components/PageHeading";
 import { requireOwner } from "@/lib/dal";
 import { formatDateTime } from "@/lib/format";
-import { JOB_STATUS_LABELS, type JobStatus } from "@/lib/jobs/status";
+import { isActiveStatus, JOB_STATUS_LABELS, type JobStatus } from "@/lib/jobs/status";
+import { removeCustomStep } from "@/lib/actions/custom-steps";
+import { setWorkingMembership } from "@/lib/actions/owner";
 import {
   getJobActivity,
   getJobDetail,
@@ -25,7 +28,7 @@ export const metadata: Metadata = {
 };
 
 export default async function OwnerJobPage({ params }: PageProps<"/owner/jobs/[jobId]">) {
-  await requireOwner();
+  const user = await requireOwner();
   const { jobId } = await params;
   const [result, activity, employees, statuses] = await Promise.all([
     getJobDetail(jobId),
@@ -46,6 +49,12 @@ export default async function OwnerJobPage({ params }: PageProps<"/owner/jobs/[j
 
   const { detail } = result;
   const { job } = detail;
+  // While a reopened step waits to be redone, installations and completion wait too.
+  const reopened = detail.card.reopenedStepTitle;
+  const working = detail.workingOwners.some((w) => w.ownerId === user.id);
+  const customSteps = detail.stages.flatMap((stage) =>
+    stage.steps.filter((s) => s.origin !== "standard").map((s) => ({ ...s, stageName: stage.name })),
+  );
 
   return (
     <>
@@ -59,7 +68,16 @@ export default async function OwnerJobPage({ params }: PageProps<"/owner/jobs/[j
       <JobSummary detail={detail} />
 
       <div className="mt-4 flex flex-col gap-3">
-        {job.status === "waiting_for_base_coat_installation" && (
+        {reopened && (
+          <p className="flex items-start gap-3 rounded-2xl border border-gold-500/50 bg-gold-900/40 p-4 text-[15px] leading-relaxed font-medium text-white">
+            <AlertIcon className="mt-0.5 h-5 w-5 shrink-0 text-gold-300" />
+            <span>
+              Reopened: “{reopened}”. The team redoes it first; installations and Mark Job Complete wait until it’s
+              complete again.
+            </span>
+          </p>
+        )}
+        {!reopened && job.status === "waiting_for_base_coat_installation" && (
           <OwnerStep
             title="Waiting for you: Base-Coat Installation"
             text="Initial Prep is complete. After you install the base coat, mark it installed to open Top-Coat Prep to the team."
@@ -67,7 +85,7 @@ export default async function OwnerJobPage({ params }: PageProps<"/owner/jobs/[j
             <OwnerJobActions jobId={job.id} kind="base_coat" />
           </OwnerStep>
         )}
-        {job.status === "waiting_for_top_coat_installation" && (
+        {!reopened && job.status === "waiting_for_top_coat_installation" && (
           <OwnerStep
             title="Waiting for you: Top-Coat Installation"
             text="Top-Coat Prep is complete. After you install the top coat, mark it installed to open Completion Work to the team."
@@ -125,6 +143,74 @@ export default async function OwnerJobPage({ params }: PageProps<"/owner/jobs/[j
         team={detail.card.team}
         employees={employees}
       />
+
+      {isActiveStatus(job.status) && (
+        <section aria-labelledby="working-team" className="mt-8">
+          <SectionHeading id="working-team" title="Working on this job" />
+          <p className="mb-3 text-[15px] leading-relaxed text-charcoal-300">
+            {working
+              ? "You’re on the working team as Owner · Working Member. You can work steps like the crew; the employee lead stays the lead."
+              : "Join the working team to check items, fill in entries, upload proof, and complete steps yourself. The employee lead stays the lead. Without joining, you can view employee work but not change it."}
+          </p>
+          {working ? (
+            <ConfirmAction
+              action={setWorkingMembership.bind(null, job.id, false)}
+              label="Leave Working Team"
+              title="Leave the working team?"
+              body="Your owner access and the employee lead don’t change, and everything you did stays in the job’s history. Leave any step you’re editing first."
+              confirmLabel="Leave"
+              busyLabel="Leaving…"
+            />
+          ) : (
+            <ConfirmAction
+              action={setWorkingMembership.bind(null, job.id, true)}
+              label="Join Job as Working Owner"
+              title="Join as a Working Owner?"
+              body="You’ll be able to work this job’s steps, and your name is recorded on everything you do. The employee lead stays the lead."
+              confirmLabel="Join"
+              busyLabel="Joining…"
+              tone="primary"
+            />
+          )}
+        </section>
+      )}
+
+      {job.status !== "complete" && (
+        <section aria-labelledby="custom-steps" className="mt-8">
+          <SectionHeading id="custom-steps" title="Custom steps" count={customSteps.length} />
+          {customSteps.length > 0 && (
+            <ul className="mb-3 flex flex-col gap-2">
+              {customSteps.map((step) => (
+                <li key={step.id} className="rounded-2xl border border-charcoal-800 bg-charcoal-900 p-4">
+                  <p className="text-[16px] font-semibold text-white">{step.title}</p>
+                  <p className="text-sm text-charcoal-400">
+                    {step.origin === "library" ? "Imported library step" : "One-time custom step"} · {step.stageName}
+                  </p>
+                  {(job.status === "scheduled" || job.status === "available_to_claim") && (
+                    <div className="mt-3">
+                      <ConfirmAction
+                        action={removeCustomStep.bind(null, job.id, step.id)}
+                        label="Remove"
+                        title={`Remove “${step.title}”?`}
+                        body="Nobody has started it. It’s removed from this job only, and the removal is recorded in the job’s history."
+                        confirmLabel="Remove"
+                        busyLabel="Removing…"
+                        tone="danger"
+                      />
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+          <Link
+            href={`/owner/jobs/${job.id}/steps/new`}
+            className="flex min-h-16 items-center justify-center rounded-2xl border border-gold-500/50 bg-charcoal-800 text-lg font-semibold text-gold-200"
+          >
+            Add Custom Step
+          </Link>
+        </section>
+      )}
 
       <WorkflowMap detail={detail} statuses={statuses} />
       {job.status !== "complete" && <AutoRefresh everyMs={30_000} />}
@@ -229,6 +315,28 @@ function HistoryEntry({ entry }: { entry: JobActivityEntry }) {
       break;
     case "step_completed":
       title = `${who} completed “${String(details.title ?? "a step")}”`;
+      break;
+    case "custom_step_added":
+      title = `${who} added the custom step “${String(details.title ?? "a step")}”${details.origin === "library_import" ? " from the library" : ""}`;
+      break;
+    case "custom_step_removed":
+      title = `${who} removed the custom step “${String(details.title ?? "a step")}”`;
+      break;
+    case "step_reopened":
+      title = `${who} reopened “${String(details.title ?? "a step")}”`;
+      if (details.reason) changes = [`Reason: ${String(details.reason)}`];
+      break;
+    case "reference_picture_added":
+      title = `${who} added a reference picture to “${String(details.title ?? "a step")}”`;
+      break;
+    case "reference_picture_archived":
+      title = `${who} removed a reference picture from “${String(details.title ?? "a step")}”`;
+      break;
+    case "owner_joined_working_team":
+      title = `${who} joined the working team as Owner · Working Member`;
+      break;
+    case "owner_left_working_team":
+      title = `${who} left the working team`;
       break;
     case "milestone_installed":
       title = `${who} marked ${String(details.label ?? "an installation milestone")}`;

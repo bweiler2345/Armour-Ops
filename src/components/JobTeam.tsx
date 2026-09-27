@@ -1,17 +1,20 @@
 import { SectionHeading } from "@/components/PageHeading";
 import type { TeamMember } from "@/lib/jobs/team";
 
-// Read-only job team: lead first, then members.
+// Read-only job team: lead first, then members, then any owners working on
+// the job (Owner/Working Member, never the lead).
 export default function JobTeam({
   team,
   currentUserId,
+  workingOwners = [],
 }: {
   team: readonly TeamMember[];
   currentUserId: string;
+  workingOwners?: readonly { ownerId: string; name: string }[];
 }) {
   return (
     <section aria-labelledby="job-team" className="mt-8">
-      <SectionHeading id="job-team" title="Team" count={team.length} />
+      <SectionHeading id="job-team" title="Team" count={team.length + workingOwners.length} />
       {team.length === 0 ? (
         <p className="rounded-2xl border border-dashed border-charcoal-700 p-5 text-center text-[15px] text-charcoal-400">
           No one is assigned to this job yet.
@@ -42,6 +45,26 @@ export default function JobTeam({
                 }`}
               >
                 {member.role === "lead" ? "Lead" : "Member"}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {workingOwners.length > 0 && (
+        <ul className="mt-2 flex flex-col gap-2">
+          {workingOwners.map((owner) => (
+            <li
+              key={owner.ownerId}
+              className="flex min-h-14 items-center justify-between gap-3 rounded-2xl border border-charcoal-800 bg-charcoal-900 px-4 py-3"
+            >
+              <span className="min-w-0 text-[17px] font-semibold break-words text-white">
+                {owner.name}
+                {owner.ownerId === currentUserId && (
+                  <span className="ml-2 rounded-full bg-white/10 px-2 py-0.5 text-xs font-semibold text-charcoal-300">You</span>
+                )}
+              </span>
+              <span className="shrink-0 rounded-full bg-sky-400/10 px-3 py-1 text-xs font-semibold text-sky-200 ring-1 ring-sky-400/30">
+                Owner · Working Member
               </span>
             </li>
           ))}

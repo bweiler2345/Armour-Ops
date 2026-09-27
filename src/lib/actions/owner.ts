@@ -75,3 +75,47 @@ export async function markJobComplete(jobId: string): Promise<OwnerActionResult>
         : "Job marked Complete. It’s now read only, and its pictures and videos are kept for five years.",
   };
 }
+
+// Owner/Working Member: the owner joins or leaves an active job's working
+// team. The employee lead and members never change.
+export async function setWorkingMembership(jobId: string, join: boolean): Promise<OwnerActionResult> {
+  await requireOwner();
+  if (!isUuid(jobId)) return { ok: false, error: JOB_ERROR_MESSAGES.notFound };
+  const supabase = await createClient();
+  if (!supabase) return { ok: false, error: JOB_ERROR_MESSAGES.generic };
+  const { data, error } = join
+    ? await supabase.rpc("join_job_as_working_owner", { p_job: jobId })
+    : await supabase.rpc("leave_working_team", { p_job: jobId });
+  refresh(jobId);
+  if (error) {
+    console.error("[owner] working membership failed", { code: error.code });
+    return { ok: false, error: jobErrorMessage(error) };
+  }
+  const messages: Record<string, string> = {
+    joined: "You joined the working team. You can now work steps; the lead is unchanged.",
+    already_joined: "You’re already on the working team.",
+    left: "You left the working team. Your recorded work stays in the job’s history.",
+    not_joined: "You weren’t on the working team.",
+  };
+  return { ok: true, message: messages[String(data)] ?? "Done." };
+}
+
+// Reopens a completed step with a required reason. The earlier attempt and
+// its proof stay unchanged; the team redoes the step as a new attempt.
+export async function reopenStep(jobId: string, stepId: string, reason: string): Promise<OwnerActionResult> {
+  await requireOwner();
+  if (!isUuid(jobId) || !isUuid(stepId)) return { ok: false, error: JOB_ERROR_MESSAGES.notFound };
+  const trimmed = String(reason ?? "").trim();
+  if (!trimmed) return { ok: false, error: "Give a reason for reopening this step." };
+  if (trimmed.length > 500) return { ok: false, error: "Keep the reason to 500 characters or fewer." };
+  const supabase = await createClient();
+  if (!supabase) return { ok: false, error: JOB_ERROR_MESSAGES.generic };
+  const { error } = await supabase.rpc("reopen_step", { p_step: stepId, p_reason: trimmed });
+  refresh(jobId);
+  revalidatePath(`/jobs/${jobId}/steps/${stepId}`);
+  if (error) {
+    console.error("[owner] reopen_step failed", { code: error.code });
+    return { ok: false, error: jobErrorMessage(error) };
+  }
+  return { ok: true, message: "Step reopened. The team redoes it as a new attempt; the earlier attempt is kept." };
+}

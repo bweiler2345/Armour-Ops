@@ -72,3 +72,29 @@ describe("media boundaries", () => {
     expect(select).not.toMatch(/object_key|r2_upload_id/);
   });
 });
+
+describe("Phase 8 boundaries", () => {
+  it("reference picture actions accept only small descriptions, never file contents", () => {
+    for (const file of ["src/lib/actions/references.ts", "src/lib/actions/library.ts", "src/lib/actions/custom-steps.ts"]) {
+      const text = read(file);
+      expect(text.startsWith('"use server";'), file).toBe(true);
+      expect(text, file).not.toMatch(/\b(Blob|ArrayBuffer|ReadableStream|Uint8Array)\b|:\s*File\b|\.(arrayBuffer|stream|bytes)\(/);
+    }
+  });
+
+  it("reference pictures are viewed through their own access check and a redirect", () => {
+    const route = read("src/app/reference/[pictureId]/route.ts");
+    expect(route).toContain("authorize_reference_view");
+    expect(route).toContain("NextResponse.redirect");
+    expect(route).not.toMatch(/\bfetch\(|\.body\b|arrayBuffer/);
+  });
+
+  it("owner-only actions check the owner before touching the database", () => {
+    for (const file of ["src/lib/actions/references.ts", "src/lib/actions/library.ts", "src/lib/actions/custom-steps.ts"]) {
+      const text = read(file);
+      const exported = text.match(/export async function \w+/g) ?? [];
+      const checks = text.match(/await requireOwner\(\)/g) ?? [];
+      expect(checks.length, file).toBe(exported.length);
+    }
+  });
+});

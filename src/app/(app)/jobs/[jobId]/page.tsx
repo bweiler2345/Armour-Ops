@@ -89,7 +89,7 @@ export default async function JobPage({ params }: PageProps<"/jobs/[jobId]">) {
         )}
       </div>
 
-      <JobTeam team={detail.card.team} currentUserId={user.id} />
+      <JobTeam team={detail.card.team} currentUserId={user.id} workingOwners={detail.workingOwners} />
       <WorkflowMap detail={detail} statuses={statuses} />
       {detail.job.status !== "complete" && <AutoRefresh everyMs={15_000} />}
     </>

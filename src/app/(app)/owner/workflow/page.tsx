@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { AlertIcon, CameraIcon, CheckIcon, ChecklistIcon, KeyIcon } from "@/components/Icons";
 import PageHeading, { SectionHeading } from "@/components/PageHeading";
 import { requireOwner } from "@/lib/dal";
@@ -44,6 +45,13 @@ export default async function WorkflowPreviewPage() {
         title="Workflow"
         description={`${workflow.name}, version ${workflow.version}. ${workflow.stages.length} stages, ${stepCount} steps. Every job will follow this version until a new one is published.`}
       />
+
+      <Link
+        href="/owner/workflow/pictures"
+        className="mb-8 flex min-h-16 items-center justify-center rounded-2xl border border-sky-400/40 bg-charcoal-900 text-lg font-semibold text-sky-100"
+      >
+        Reference Pictures for Standard Steps
+      </Link>
 
       <div className="flex flex-col gap-8">
         {workflow.stages.map((stage, index) => (

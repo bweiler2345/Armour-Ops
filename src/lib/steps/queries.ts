@@ -54,8 +54,30 @@ export type StepDetail = {
   answeredBy: Record<string, string>;
   notes: string;
   teamIds: string[];
+  // Owners who joined the job's working team.
+  workingOwnerIds: string[];
+  // Where the step came from.
+  origin: "standard" | "library" | "one_time";
+  // Owner-supplied guidance pictures (never proof), in order.
+  references: { linkId: string; pictureId: string }[];
+  // Earlier attempts replaced by reopening, newest first, with what was saved.
+  priorAttempts: PriorAttempt[];
   nextStepId: string | null;
   previousStepId: string | null;
+};
+
+export type PriorAttempt = {
+  id: string;
+  number: number;
+  completedByName: string | null;
+  completedAt: string | null;
+  reopenedByName: string | null;
+  reopenedAt: string | null;
+  reason: string | null;
+  checked: string[];
+  answers: Record<string, string>;
+  notes: string;
+  media: StepMediaItem[];
 };
 
 function answerText(row: Database["public"]["Tables"]["step_input_responses"]["Row"]) {
@@ -147,7 +169,7 @@ export async function getStepDetail(
   const supabase = await createClient();
   if (!supabase) return { status: "error" };
 
-  const [job, stages, steps, blocks, items, inputs, proofs, statuses, team] = await Promise.all([
+  const [job, stages, steps, blocks, items, inputs, proofs, statuses, team, working, references, attempts, reopenings] = await Promise.all([
     supabase.from("jobs").select("id, job_number, client_name, status").eq("id", jobId).maybeSingle(),
     supabase.from("job_stages").select("*").eq("job_id", jobId),
     supabase.from("job_steps").select("*").eq("job_id", jobId),
@@ -157,8 +179,22 @@ export async function getStepDetail(
     supabase.from("job_step_proof_requirements").select("*").eq("job_step_id", stepId).order("position"),
     supabase.from("job_step_status").select("*").eq("job_step_id", stepId).maybeSingle(),
     supabase.from("job_team").select("employee_id").eq("job_id", jobId),
+    supabase.from("job_working_owner_status").select("owner_id").eq("job_id", jobId),
+    supabase
+      .from("reference_picture_links")
+      .select("id, picture_id")
+      .eq("job_step_id", stepId)
+      .is("archived_at", null)
+      .order("position"),
+    supabase
+      .from("step_attempt_history")
+      .select("*")
+      .eq("job_step_id", stepId)
+      .eq("status", "superseded")
+      .order("attempt_number", { ascending: false }),
+    supabase.from("step_reopening_status").select("*").eq("job_step_id", stepId),
   ]);
-  const results = [job, stages, steps, blocks, items, inputs, proofs, statuses, team];
+  const results = [job, stages, steps, blocks, items, inputs, proofs, statuses, team, working, references, attempts, reopenings];
   if (results.some((r) => r.error)) return { status: "error" };
   if (!job.data || !statuses.data) return { status: "missing" };
 
@@ -181,6 +217,26 @@ export async function getStepDetail(
 
   const saved = await loadAnswers(supabase, statuses.data.attempt_id);
   if (!saved.ok) return { status: "error" };
+
+  const priorAttempts: PriorAttempt[] = [];
+  for (const attempt of attempts.data ?? []) {
+    const answers = await loadAnswers(supabase, attempt.id);
+    if (!answers.ok) return { status: "error" };
+    const reopening = (reopenings.data ?? []).find((r) => r.previous_attempt_id === attempt.id);
+    priorAttempts.push({
+      id: attempt.id,
+      number: attempt.attempt_number,
+      completedByName: attempt.completed_by_name,
+      completedAt: attempt.completed_at,
+      reopenedByName: reopening?.reopened_by_name ?? null,
+      reopenedAt: reopening?.reopened_at ?? null,
+      reason: reopening?.reason ?? null,
+      checked: answers.checked,
+      answers: answers.answers,
+      notes: answers.notes,
+      media: answers.media.filter((m) => m.status === "uploaded"),
+    });
+  }
 
   const blockIds = new Set((blocks.data ?? []).map((b) => b.id));
   return {
@@ -237,6 +293,10 @@ export async function getStepDetail(
       notes: saved.notes,
       media: saved.media,
       teamIds: (team.data ?? []).map((t) => t.employee_id),
+      workingOwnerIds: (working.data ?? []).map((w) => w.owner_id),
+      origin: !step.is_custom ? "standard" : step.custom_origin === "library_import" ? "library" : "one_time",
+      references: (references.data ?? []).map((r) => ({ linkId: r.id, pictureId: r.picture_id })),
+      priorAttempts,
       nextStepId: index >= 0 ? (ordered[index + 1]?.id ?? null) : null,
       previousStepId: index > 0 ? ordered[index - 1].id : null,
     },
