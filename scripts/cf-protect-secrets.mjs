@@ -2,7 +2,7 @@
 //
 // OpenNext copies every variable from the project's .env files into the Worker
 // bundle (.open-next/cloudflare/next-env.mjs). Server secrets such as
-// SUPABASE_SECRET_KEY must never be bundled: on Cloudflare they come from
+// SUPABASE_SECRET_KEY and the R2 keys must never be bundled: on Cloudflare they come from
 // Workers secrets, and for local previews from .dev.vars.
 //
 // 1. Rewrite next-env.mjs to keep only NEXT_PUBLIC_ variables (these are
@@ -20,7 +20,12 @@ const outputDir = join(root, ".open-next");
 const envModulePath = join(outputDir, "cloudflare", "next-env.mjs");
 const PUBLIC_PREFIX = "NEXT_PUBLIC_";
 // Always treated as secrets, even if only set in the shell environment.
-const KNOWN_SECRETS = ["SUPABASE_SECRET_KEY", "SUPABASE_SERVICE_ROLE_KEY"];
+const KNOWN_SECRETS = [
+  "SUPABASE_SECRET_KEY",
+  "SUPABASE_SERVICE_ROLE_KEY",
+  "R2_ACCESS_KEY_ID",
+  "R2_SECRET_ACCESS_KEY",
+];
 
 if (!existsSync(envModulePath)) {
   console.error(`[cf-protect-secrets] ${envModulePath} not found. Run the OpenNext build first.`);

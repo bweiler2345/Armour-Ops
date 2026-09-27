@@ -4,6 +4,8 @@
 // That copy must be replaced by the database's version whenever it could be
 // out of date, without throwing away work the editor hasn't saved yet.
 
+import type { StepMediaItem } from "@/lib/media/types";
+
 export type LiveStep = {
   state: "completed" | "in_progress" | "available" | "locked";
   holdHeldBy: string | null;
@@ -12,6 +14,9 @@ export type LiveStep = {
   checked: string[];
   answers: Record<string, string>;
   notes: string;
+  // Proof files on the current attempt. Only the owner and assigned
+  // employees can read them; everyone else gets an empty list.
+  media: StepMediaItem[];
 };
 
 export type LocalStep = {

@@ -2,10 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import AutoRefresh from "@/components/AutoRefresh";
-import { AlertIcon, CameraIcon, CheckIcon, ChecklistIcon, LockIcon } from "@/components/Icons";
+import { AlertIcon, CameraIcon, CheckIcon, ChecklistIcon, LockIcon, VideoIcon } from "@/components/Icons";
 import StepStateBadge from "@/components/StepStateBadge";
 import { requireUser } from "@/lib/dal";
 import { formatDateTime, formatTime } from "@/lib/format";
+import { formatBytes, formatDuration } from "@/lib/media/files";
 import { getStepDetail, type StepBlock } from "@/lib/steps/queries";
 import ClearHoldButton from "./ClearHoldButton";
 import StepWorkspace from "./StepWorkspace";
@@ -130,10 +131,11 @@ export default async function StepPage({ params }: PageProps<"/jobs/[jobId]/step
         <StepWorkspace
           jobId={jobId}
           stepId={stepId}
+          userId={user.id}
           checks={checks}
           inputs={detail.inputs}
-          proofType={step.proofType}
           proofs={detail.proofs}
+          initialMedia={detail.media}
           confirmationText={step.confirmationText ?? ""}
           initialChecked={detail.checked}
           initialAnswers={detail.answers}
@@ -143,7 +145,7 @@ export default async function StepPage({ params }: PageProps<"/jobs/[jobId]/step
           nextStepHref={detail.nextStepId ? `/jobs/${jobId}/steps/${detail.nextStepId}` : null}
         />
       ) : (
-        step.kind === "standard" && <ReadOnlyWork detail={detail} checks={checks} />
+        step.kind === "standard" && <ReadOnlyWork detail={detail} checks={checks} canViewMedia={user.role === "owner" || onTeam} />
       )}
 
       {/* Read-only viewers see teammates' saves without refreshing. */}
@@ -235,9 +237,11 @@ function BlockSection({ block }: { block: StepBlock }) {
 function ReadOnlyWork({
   detail,
   checks,
+  canViewMedia,
 }: {
   detail: Extract<Awaited<ReturnType<typeof getStepDetail>>, { status: "ok" }>["detail"];
   checks: { id: string; text: string; required: boolean }[];
+  canViewMedia: boolean;
 }) {
   const checked = new Set(detail.checked);
   const { step } = detail;
@@ -288,12 +292,48 @@ function ReadOnlyWork({
             <CameraIcon className="h-6 w-6 text-gold-300" />
             Required {step.proofType === "video" ? "video" : "pictures"}
           </h2>
-          <ul className="mt-3 flex flex-col gap-2">
-            {detail.proofs.map((p) => (
-              <li key={p.id} className="rounded-2xl bg-charcoal-800 px-4 py-3 text-[15px] text-white">
-                {p.label}
-              </li>
-            ))}
+          <ul className="mt-3 flex flex-col gap-3">
+            {detail.proofs.map((p) => {
+              const files = detail.media.filter((m) => m.requirementId === p.id && m.status === "uploaded");
+              return (
+                <li key={p.id} className="rounded-2xl bg-charcoal-800 px-4 py-3">
+                  <p className="text-[15px] text-white">{p.label}</p>
+                  {files.length > 0 ? (
+                    <ul className="mt-3 flex flex-wrap gap-2">
+                      {files.map((m) => (
+                        <li key={m.id}>
+                          {/* Opens through the access check and a short-lived private link. */}
+                          <a
+                            href={`/media/${m.id}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="flex items-center gap-2 rounded-xl bg-charcoal-900 p-1.5 pr-3 text-sm text-charcoal-300"
+                          >
+                            {m.mediaType === "picture" ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={`/media/${m.id}`} alt="" loading="lazy" className="h-16 w-16 rounded-lg object-cover" />
+                            ) : (
+                              <>
+                                <span className="flex h-16 w-16 items-center justify-center rounded-lg bg-charcoal-700 text-gold-300">
+                                  <VideoIcon className="h-7 w-7" />
+                                </span>
+                                {[m.durationSeconds !== null ? formatDuration(m.durationSeconds) : null, formatBytes(m.sizeBytes ?? m.declaredSizeBytes)]
+                                  .filter(Boolean)
+                                  .join(" · ")}
+                              </>
+                            )}
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="mt-1 text-sm text-charcoal-400">
+                      {canViewMedia ? "Nothing uploaded yet." : "Only the job’s team and the owner can see proof files."}
+                    </p>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </section>
       )}

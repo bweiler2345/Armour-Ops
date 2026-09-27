@@ -186,3 +186,93 @@ You need the owner and two active test employees (A and B), and a fictional job 
 6. **Media blocks completion.** Tick every Final check item and the confirmation. The button reads **Needs Proof to Complete** and stays disabled, and the list explains that uploading arrives in the next update.
 7. **Locked steps and reference lists.** From the job's Workflow section, open **Set Up for Base-Coat Installation** (locked). It is read only; its mixing-station and inside-work-area lists appear as **Reference** lists with no checkboxes, and its Final check shows as read only.
 8. **Read only.** As an employee not on the job, open Grind Floor: you see A's or B's progress but cannot change anything. As the owner, you can view every step but not tick anything.
+
+## 13. Phase 6: Photo and video proof (Cloudflare R2)
+
+Proof files are stored in a **private** Cloudflare R2 bucket, not in Supabase. Phones upload straight to R2 using short-lived links the app issues after checking the employee, the job team, and the edit lease; the R2 keys stay on the server. Nothing here needs a paid plan: R2's free allowance covers 10 GB of storage.
+
+### 13.1 Run the Phase 6 database update
+
+The Phase 5 files (step 12) must already have been run. In **SQL Editor**, run `supabase/migrations/20260927070000_step_media.sql` (new query, paste the whole file, **Run**). It should finish with "Success. No rows returned." It adds upload records, verification states, retention dates, and the rule that a step needing pictures or videos completes only with verified uploads.
+
+### 13.2 Create the private bucket
+
+In the Cloudflare dashboard (sign in with your own account):
+
+1. Open **R2 Object Storage**. If asked, enable R2 (the free plan is enough; Cloudflare may ask for a payment method even for free usage).
+2. Select **Create bucket**.
+   - **Bucket name:** `armour-ops-media-dev` (for local testing; a separate production bucket comes with deployment).
+   - **Location:** Automatic.
+   - **Default storage class:** Standard.
+3. Select **Create bucket**.
+4. Open the bucket's **Settings** tab and confirm it is private:
+   - **Public access → R2.dev subdomain:** leave **Disabled**.
+   - **Custom domains:** leave empty.
+
+### 13.3 Allow uploads from the app (CORS)
+
+Still in the bucket's **Settings** tab, find **CORS Policy**, select **Add CORS policy** (or **Edit**), and paste exactly:
+
+```json
+[
+  {
+    "AllowedOrigins": ["http://localhost:3000", "http://localhost:8787"],
+    "AllowedMethods": ["PUT"],
+    "AllowedHeaders": ["content-type"],
+    "MaxAgeSeconds": 3600
+  }
+]
+```
+
+Select **Save**. Only uploads need this: viewing uses ordinary links, and the server checks finished uploads itself, so no response headers need exposing. `localhost:8787` is for `npm run cf:preview`. If you test on a phone using your computer's network address (for example `http://192.168.1.20:3000`), add that exact address to `AllowedOrigins` too. The production address is added at deployment.
+
+### 13.4 Clean up abandoned uploads automatically
+
+In the bucket's **Settings** tab, find **Object lifecycle rules**. Cloudflare adds a default rule that aborts incomplete multipart uploads after 7 days; keep it. If it is missing, select **Add rule**, name it `abort-incomplete-uploads`, apply it to all objects, turn on **Abort incomplete multipart uploads** after **7 days**, and save.
+
+Do **not** add a rule that deletes objects. Proof is kept for five years after job completion; the app records the date each job's media becomes eligible for cleanup, and a later phase will do the cleanup.
+
+### 13.5 Create an API token for this bucket only
+
+1. Go back to **R2 Object Storage** (the overview page), and in **Account details** select **Manage** next to **API Tokens** (on some dashboards: **Manage R2 API Tokens**).
+2. Select **Create Account API token** (or **Create User API token**).
+   - **Token name:** `armour-ops-media-dev`
+   - **Permissions:** **Object Read & Write**
+   - **Specify bucket(s):** **Apply to specific buckets only**, then choose `armour-ops-media-dev`.
+   - **TTL:** Forever (or a date you'll remember to renew).
+   - **Client IP address filtering:** leave empty.
+3. Select **Create API Token**. The next page shows values **once**. You need two of them, from the **S3 client** section: **Access Key ID** and **Secret Access Key**. (The "Token value" at the top is not used.)
+4. On the R2 overview page, **Account details** also shows your **Account ID**.
+
+### 13.6 Add the settings to `.env.local`
+
+Open `.env.local` in the project folder (never in chat, and never commit it) and add these four lines with your own values:
+
+```
+R2_ACCOUNT_ID=<Account ID from 13.5, step 4>
+R2_ACCESS_KEY_ID=<Access Key ID from 13.5>
+R2_SECRET_ACCESS_KEY=<Secret Access Key from 13.5>
+R2_BUCKET=armour-ops-media-dev
+```
+
+- Never add a `NEXT_PUBLIC_` prefix to any of these names.
+- For `npm run cf:preview`, put the same four lines in `.dev.vars` (also ignored by Git). `npm run cf:build` removes them from the Worker bundle and fails if a key appears in the build output.
+- Restart `npm run dev` after editing `.env.local`.
+
+If the values are missing, the step screen says "Uploads aren't set up yet" and nothing is uploaded.
+
+### 13.7 Try it
+
+You need the owner, two active test employees (A and B) on a fictional job's team, one employee (C) who is not on the team, and a phone. Use test pictures and videos only, never a real customer's floor with identifying details.
+
+1. **Required proof is shown first.** As A, open **Grind Floor**. Under **Required proof** it says one video, MOV or MP4, up to 3 minutes and 300 MB, and **Complete Step** reads **Needs Proof to Complete**.
+2. **Unsupported and oversized files.** Choose a picture where the video is required: "This proof needs a video, not a picture." Choose a video longer than 3 minutes: "That video is 3:25 long. Videos can be up to 3 minutes." (or similar). Your ticked Final check items stay ticked.
+3. **Video upload with progress.** Record or choose a 1 to 3 minute video on the phone. The item shows "Checking video…", then "Uploading N%" with a bar, then "Checking upload…", then **Video uploaded** with its length and size.
+4. **Interrupted upload.** Start another large video on a step that needs one (or remove the first and add it again), then turn on airplane mode mid-upload. After a few tries it shows "Lost connection…" with **Retry**. Turn airplane mode off and tap **Retry**: it continues from where it stopped rather than from 0%.
+5. **Reload and resume.** Start a video upload and reload the page mid-way. The item shows "Upload paused. Choose the same video to continue." Tap **Continue**, choose the same video, and it finishes. Choosing a different video is refused.
+6. **Cancel and remove.** Start an upload and tap **Cancel**: it disappears without asking. Tap **Remove** on an uploaded video: a confirmation appears; **Keep** leaves it, **Remove** removes it and History (as the owner) shows the removal.
+7. **Completion.** With the video uploaded, every Final check item ticked, and the confirmation tapped, **Complete Step** unlocks and completes the step. The step then shows the video read only, with no Remove button.
+8. **Pictures.** On a step that needs pictures (for example the setup step's photos), use the camera and the photo library. Each picture shows "Preparing picture…", then progress, then a thumbnail. HEIC pictures from an iPhone work. On a step that allows several pictures, **Add Another Picture** keeps working.
+9. **Private viewing.** As B (on the team) and as the owner, open the completed step: the video and pictures open. As C (not on the team), open the same step: the proof shows "Only the job's team and the owner can see proof files." Copy a proof link (`/media/…`) from A's screen and open it signed in as C: "Not found." Signed out, it goes to the sign-in page. A signed link copied from the browser's address bar after opening a video stops working after about 15 minutes (pictures after 5).
+10. **Edit lease.** While A is uploading, have the owner select **Clear Edit Hold**. A's upload stops being accepted and A sees that the owner ended the session; after **Edit this step**, **Retry** finishes it.
+11. **Bucket stays private.** In the R2 dashboard, open the bucket's objects: files are under `jobs/<job id>/steps/<step id>/<attempt id>/…` with random names. The bucket has no public URL.

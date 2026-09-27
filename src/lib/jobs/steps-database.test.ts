@@ -352,12 +352,12 @@ describe("answers and completion", () => {
     expect(await state(second)).toBe("available");
   });
 
-  it("blocks steps that need pictures or videos, even with every check done", async () => {
+  it("blocks steps that need pictures or videos until verified proof is uploaded", async () => {
     const job = await teamJob();
     const first = await step(job, "initial_prep", "grind_floor");
     await hold(a, first);
     await checkAll(first);
-    await expect(call(a, "complete_step", first, lease(a, first), true)).rejects.toThrow(/needs video proof/);
+    await expect(call(a, "complete_step", first, lease(a, first), true)).rejects.toThrow(/Add the required proof first/);
     expect(await state(first)).toBe("in_progress");
     expect(
       await rows(`select count(*)::int as n from public.step_attempts where job_step_id = $1 and status = 'completed'`, [first]),

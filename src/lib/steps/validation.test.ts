@@ -66,7 +66,9 @@ describe("what blocks Complete Step", () => {
         checked: new Set(["a"]),
         inputs: [boxes, extra],
         answers: { [boxes.id]: "2" },
-        proofType: "none",
+        proofs: [],
+        media: [],
+        uploading: false,
         confirmed: false,
       }),
     ).toEqual(["Check the last Final check item.", "Fill in Additional flake.", "Tap the confirmation statement."]);
@@ -79,22 +81,52 @@ describe("what blocks Complete Step", () => {
         checked: new Set(["a", "b"]),
         inputs: [],
         answers: {},
-        proofType: "none",
+        proofs: [],
+        media: [],
+        uploading: false,
         confirmed: true,
       }),
     ).toEqual([]);
   });
 
-  it("always blocks steps that need pictures or videos in this phase", () => {
-    const missing = missingForCompletion({
-      checks: [],
-      checked: new Set(),
-      inputs: [],
-      answers: {},
-      proofType: "video",
-      confirmed: true,
-    });
-    expect(missing).toEqual(["Add the required video. Uploading arrives in the next update."]);
+  const photos = { id: "p1", label: "Room photos", mediaType: "picture" as const, minCount: 3, allowMultiple: true };
+  const video = { id: "v1", label: "Walkthrough video", mediaType: "video" as const, minCount: 1, allowMultiple: false };
+  const base = { checks: [], checked: new Set<string>(), inputs: [], answers: {}, confirmed: true };
+
+  it("requires verified proof for every requirement", () => {
+    expect(missingForCompletion({ ...base, proofs: [photos, video], media: [], uploading: false })).toEqual([
+      "Add proof: Room photos",
+      "Add proof: Walkthrough video",
+    ]);
+  });
+
+  it("counts only uploaded files toward multiple-picture requirements", () => {
+    const media = [
+      { requirementId: "p1", status: "uploaded" as const },
+      { requirementId: "p1", status: "uploaded" as const },
+      { requirementId: "p1", status: "failed" as const },
+      { requirementId: "v1", status: "uploaded" as const },
+    ];
+    expect(missingForCompletion({ ...base, proofs: [photos, video], media, uploading: false })).toEqual([
+      "Add proof: Room photos",
+    ]);
+    media.push({ requirementId: "p1", status: "uploaded" });
+    expect(missingForCompletion({ ...base, proofs: [photos, video], media, uploading: false })).toEqual([]);
+  });
+
+  it("blocks completion while an upload is still going", () => {
+    const media = [{ requirementId: "v1", status: "uploaded" as const }];
+    expect(missingForCompletion({ ...base, proofs: [video], media, uploading: true })).toEqual([
+      "Wait for every upload to finish.",
+    ]);
+    expect(
+      missingForCompletion({
+        ...base,
+        proofs: [video],
+        media: [...media, { requirementId: "v1", status: "pending" as const }],
+        uploading: false,
+      }),
+    ).toEqual(["Wait for every upload to finish."]);
   });
 
   it("reports an invalid saved entry", () => {
@@ -104,7 +136,9 @@ describe("what blocks Complete Step", () => {
         checked: new Set(),
         inputs: [boxes],
         answers: { [boxes.id]: "1.5" },
-        proofType: "none",
+        proofs: [],
+        media: [],
+        uploading: false,
         confirmed: true,
       }),
     ).toEqual(["Enter a whole number for Full boxes recovered."]);

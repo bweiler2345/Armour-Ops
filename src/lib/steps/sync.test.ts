@@ -17,6 +17,7 @@ function live(overrides: Partial<LiveStep> = {}): LiveStep {
     checked: ["c1", "c2", "c3"],
     answers: {},
     notes: "",
+    media: [],
     ...overrides,
   };
 }

@@ -148,6 +148,12 @@ What exists:
 
 - Job pages show a workflow map from the job's own snapshot, with step states and owner-only milestones.
 - Team members work steps one at a time with an expiring edit lease: Final check, required entries, notes, and the confirmation, all saved as they go. Completed steps record who completed them and when, and never change.
-- Steps that need pictures or videos show their requirement but can't be completed until uploads arrive in Phase 6.
 
-Not built yet: role changes on the Team screen, photo and video uploads, Weekly Setup checklists, notifications, and deployment. See the implementation plan for the order.
+**Phase 6: photo and video proof — built; waiting for Cloudflare R2 setup and live verification.** Setup steps are in `docs/SUPABASE_SETUP.md`, step 13.
+
+- Phones upload proof straight to a private Cloudflare R2 bucket using short-lived links; the R2 keys stay on the server and files never pass through the app's server.
+- Pictures are compressed on the phone to at most 5 MB. Videos (MOV or MP4, up to 3 minutes and 300 MB) upload in parts and continue after a lost connection or a reload.
+- A step needing proof completes only after every required file is uploaded and checked by the server. Proof on a completed step can't be removed or replaced.
+- Only the owner and the job's team can view proof, through links that expire within minutes.
+
+Not built yet: role changes on the Team screen, Weekly Setup checklists, notifications, and deployment. See the implementation plan for the order.

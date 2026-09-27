@@ -6,7 +6,6 @@ import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { fieldClass } from "@/components/fieldClass";
 import {
   AlertIcon,
-  CameraIcon,
   CheckIcon,
   ChevronRightIcon,
   LockIcon,
@@ -24,14 +23,17 @@ import {
   type StepResult,
 } from "@/lib/actions/steps";
 import { formatTime } from "@/lib/format";
+import type { StepMediaItem } from "@/lib/media/types";
 import { holdAfterRefusal, LEASE_MESSAGES, type LeaseRefusal } from "@/lib/steps/lease";
 import { mergeLive, sameAnswers, type LocalStep } from "@/lib/steps/sync";
 import {
   missingForCompletion,
   parseInputValue,
   type CheckItem,
+  type ProofNeed,
   type StepInput,
 } from "@/lib/steps/validation";
+import ProofUploader from "./ProofUploader";
 
 // While editing, renew this screen's lease this often (a lease lasts two
 // minutes); a refusal, such as the owner ending the session, is noticed
@@ -50,10 +52,11 @@ type Save = { status: "idle" | "saving" | "saved" } | { status: "error"; message
 export default function StepWorkspace({
   jobId,
   stepId,
+  userId,
   checks,
   inputs,
-  proofType,
   proofs,
+  initialMedia,
   confirmationText,
   initialChecked,
   initialAnswers,
@@ -64,10 +67,11 @@ export default function StepWorkspace({
 }: {
   jobId: string;
   stepId: string;
+  userId: string;
   checks: CheckItem[];
   inputs: StepInput[];
-  proofType: "none" | "picture" | "video";
-  proofs: { id: string; label: string; mediaType: "picture" | "video" }[];
+  proofs: ProofNeed[];
+  initialMedia: StepMediaItem[];
   confirmationText: string;
   initialChecked: string[];
   initialAnswers: Record<string, string>;
@@ -85,6 +89,10 @@ export default function StepWorkspace({
     confirmed: false,
   }));
   const [holder, setHolder] = useState({ name: holderName, expiresAt: holderExpiresAt });
+  // Proof files the database knows about, and whether this screen is still
+  // uploading one.
+  const [media, setMedia] = useState<StepMediaItem[]>(initialMedia);
+  const [uploading, setUploading] = useState(false);
   const [inputErrors, setInputErrors] = useState<Record<string, string>>({});
   const [save, setSave] = useState<Save>({ status: "idle" });
   const [completing, startCompleting] = useTransition();
@@ -109,6 +117,7 @@ export default function StepWorkspace({
         return true;
       }
       setHolder({ name: live.holdHeldByName, expiresAt: live.holdExpiresAt });
+      setMedia(live.media);
       const pending = {
         checks: new Set(unsaved.current.checks),
         inputs: new Set(unsaved.current.inputs),
@@ -205,6 +214,9 @@ export default function StepWorkspace({
     };
   }, [acquire, heartbeat, stepId, sync]);
 
+  // After an upload finishes or a file is removed, show the saved list.
+  const refreshMedia = useCallback(() => sync(lease.current !== null), [sync]);
+
   const editable = hold.status === "held" && !done;
   const { checked, answers, notes, confirmed } = local;
 
@@ -276,9 +288,14 @@ export default function StepWorkspace({
     checked,
     inputs,
     answers,
-    proofType,
+    proofs,
+    media,
+    uploading,
     confirmed,
   });
+  const needsProof = proofs.some(
+    (p) => media.filter((m) => m.requirementId === p.id && m.status === "uploaded").length < p.minCount,
+  );
 
   function complete() {
     setCompleteError(null);
@@ -392,7 +409,18 @@ export default function StepWorkspace({
         </section>
       )}
 
-      <ProofCard proofType={proofType} proofs={proofs} />
+      <ProofUploader
+        jobId={jobId}
+        stepId={stepId}
+        userId={userId}
+        proofs={proofs}
+        media={media}
+        editable={editable}
+        lease={lease}
+        onLeaseRefused={stopEditing}
+        refresh={refreshMedia}
+        onBusyChange={setUploading}
+      />
 
       <section aria-labelledby="notes-label">
         <label id="notes-label" htmlFor="notes" className="mb-2 block text-lg font-semibold text-white">
@@ -462,8 +490,8 @@ export default function StepWorkspace({
           disabled={!editable || completing || missing.length > 0}
           className="gold-gradient flex min-h-16 w-full items-center justify-center gap-3 rounded-2xl text-lg font-semibold text-charcoal-950 shadow-lg shadow-black/30 transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
         >
-          {completing ? <SpinnerIcon className="h-6 w-6" /> : proofType === "none" ? <CheckIcon className="h-6 w-6" /> : <LockIcon className="h-6 w-6" />}
-          {completing ? "Completing…" : proofType === "none" ? "Complete Step" : "Needs Proof to Complete"}
+          {completing ? <SpinnerIcon className="h-6 w-6" /> : needsProof ? <LockIcon className="h-6 w-6" /> : <CheckIcon className="h-6 w-6" />}
+          {completing ? "Completing…" : needsProof ? "Needs Proof to Complete" : "Complete Step"}
         </button>
       </section>
     </div>
@@ -543,38 +571,6 @@ function SaveStatus({ save }: { save: Save }) {
       {save.status === "saving" ? <SpinnerIcon className="h-4 w-4" /> : <CheckIcon className="h-4 w-4 text-emerald-300" />}
       {save.status === "saving" ? "Saving…" : "Saved"}
     </p>
-  );
-}
-
-function ProofCard({
-  proofType,
-  proofs,
-}: {
-  proofType: "none" | "picture" | "video";
-  proofs: { id: string; label: string; mediaType: "picture" | "video" }[];
-}) {
-  if (proofType === "none") return null;
-  return (
-    <section
-      aria-labelledby="proof"
-      className="rounded-3xl border border-gold-500/40 bg-charcoal-900 p-5"
-    >
-      <h2 id="proof" className="flex items-center gap-2 text-lg font-semibold text-white">
-        <CameraIcon className="h-6 w-6 text-gold-300" />
-        Required {proofType === "video" ? "video" : "pictures"}
-      </h2>
-      <ul className="mt-3 flex flex-col gap-2">
-        {proofs.map((p) => (
-          <li key={p.id} className="rounded-2xl bg-charcoal-800 px-4 py-3 text-[15px] text-white">
-            {p.label}
-          </li>
-        ))}
-      </ul>
-      <p className="mt-3 text-sm leading-relaxed text-gold-300">
-        Uploading arrives in the next update. Until then this step can’t be completed, but you can
-        still work through the Final check.
-      </p>
-    </section>
   );
 }
 

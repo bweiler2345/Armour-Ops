@@ -53,13 +53,23 @@ export function parseInputValue(input: StepInput, raw: string): ParsedInput {
 
 export type CheckItem = { id: string; text: string; required: boolean };
 
+export type ProofNeed = {
+  id: string;
+  label: string;
+  mediaType: "picture" | "video";
+  minCount: number;
+  allowMultiple: boolean;
+};
+
 // What still stands between the employee and Complete Step, in screen order.
 export function missingForCompletion(input: {
   checks: readonly CheckItem[];
   checked: ReadonlySet<string>;
   inputs: readonly StepInput[];
   answers: Readonly<Record<string, string>>;
-  proofType: "none" | "picture" | "video";
+  proofs: readonly ProofNeed[];
+  media: readonly { requirementId: string; status: "pending" | "uploaded" | "failed" }[];
+  uploading: boolean;
   confirmed: boolean;
 }): string[] {
   const missing: string[] = [];
@@ -77,10 +87,12 @@ export function missingForCompletion(input: {
     if (!parsed.ok) missing.push(parsed.error);
     else if (field.required && parsed.value === null) missing.push(`Fill in ${field.label}.`);
   }
-  if (input.proofType !== "none") {
-    missing.push(
-      `Add the required ${input.proofType === "video" ? "video" : "pictures"}. Uploading arrives in the next update.`,
-    );
+  if (input.uploading || input.media.some((m) => m.status === "pending")) {
+    missing.push("Wait for every upload to finish.");
+  }
+  for (const proof of input.proofs) {
+    const have = input.media.filter((m) => m.requirementId === proof.id && m.status === "uploaded").length;
+    if (have < proof.minCount) missing.push(`Add proof: ${proof.label}`);
   }
   if (!input.confirmed) missing.push("Tap the confirmation statement.");
   return missing;

@@ -1,4 +1,4 @@
-// Hand-written to match supabase/migrations (Phases 1 to 5). Replace with
+// Hand-written to match supabase/migrations (Phases 1 to 6). Replace with
 // the output of `supabase gen types typescript` once the Supabase CLI is set up.
 
 type AppRole = "owner" | "employee";
@@ -30,7 +30,9 @@ type JobActivityType =
   | "step_started"
   | "step_completed"
   | "status_changed"
-  | "step_hold_cleared";
+  | "step_hold_cleared"
+  | "proof_uploaded"
+  | "proof_removed";
 type BlockKind = "ordered_list" | "reference_list" | "checklist";
 type AssignmentRole = "lead" | "member";
 type AssignmentMethod = "claimed" | "joined" | "added_by_owner" | "lead_change";
@@ -422,6 +424,41 @@ export type Database = {
         Update: never;
         Relationships: [];
       };
+      step_media: {
+        Row: {
+          id: string;
+          job_id: string;
+          job_step_id: string;
+          attempt_id: string;
+          proof_requirement_id: string;
+          uploaded_by: string;
+          media_type: "picture" | "video";
+          content_type: string;
+          // Server-only columns (not readable by signed-in users).
+          object_key: string;
+          r2_upload_id: string | null;
+          upload_method: "single" | "multipart";
+          part_size: number | null;
+          declared_size_bytes: number;
+          original_size_bytes: number | null;
+          duration_seconds: number | null;
+          original_file_name: string | null;
+          file_last_modified: number | null;
+          size_bytes: number | null;
+          status: "pending" | "uploaded" | "failed" | "discarded" | "deleted";
+          created_at: string;
+          authorization_expires_at: string;
+          uploaded_at: string | null;
+          failed_at: string | null;
+          failure_reason: string | null;
+          discarded_at: string | null;
+          discarded_by: string | null;
+          deleted_at: string | null;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
       job_activity: {
         Row: {
           id: number;
@@ -524,6 +561,65 @@ export type Database = {
       };
       make_job_available: { Args: { p_job: string }; Returns: undefined };
       claim_job: { Args: { p_job: string }; Returns: undefined };
+      create_media_upload: {
+        Args: {
+          p_step: string;
+          p_lease: string;
+          p_requirement: string;
+          p_media_type: "picture" | "video";
+          p_content_type: string;
+          p_size: number;
+          p_original_size: number | null;
+          p_duration: number | null;
+          p_file_name: string;
+          p_last_modified: number | null;
+        };
+        Returns: {
+          media_id: string;
+          object_key: string;
+          upload_method: "single" | "multipart";
+          part_size: number | null;
+          authorization_expires_at: string;
+        }[];
+      };
+      discard_media: { Args: { p_media: string; p_lease: string }; Returns: undefined };
+      set_media_multipart: {
+        Args: { p_media: string; p_actor: string; p_lease: string; p_upload_id: string };
+        Returns: undefined;
+      };
+      media_upload_details: {
+        Args: { p_media: string; p_actor: string; p_lease: string };
+        Returns: {
+          object_key: string;
+          r2_upload_id: string | null;
+          upload_method: "single" | "multipart";
+          content_type: string;
+          declared_size_bytes: number;
+          part_size: number | null;
+          original_file_name: string | null;
+          file_last_modified: number | null;
+          authorization_expires_at: string;
+        }[];
+      };
+      confirm_media_upload: {
+        Args: {
+          p_media: string;
+          p_actor: string;
+          p_lease: string;
+          p_object_key: string;
+          p_stored_size: number;
+          p_stored_content_type: string;
+        };
+        Returns: string;
+      };
+      fail_media_upload: {
+        Args: { p_media: string; p_actor: string; p_lease: string; p_reason: string };
+        Returns: undefined;
+      };
+      authorize_media_view: {
+        Args: { p_media: string; p_actor: string };
+        Returns: { object_key: string; content_type: string; media_type: "picture" | "video" }[];
+      };
       acquire_step_edit: {
         Args: { p_step: string };
         Returns: { lease_id: string; expires_at: string }[];

@@ -2,6 +2,7 @@ import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/database.types";
 import { isUuid } from "@/lib/jobs/errors";
+import type { StepMediaItem } from "@/lib/media/types";
 import type { LiveStep } from "./sync";
 import type { StepInput } from "./validation";
 
@@ -37,7 +38,14 @@ export type StepDetail = {
   };
   blocks: StepBlock[];
   inputs: StepInput[];
-  proofs: { id: string; label: string; mediaType: "picture" | "video"; allowMultiple: boolean }[];
+  proofs: {
+    id: string;
+    label: string;
+    mediaType: "picture" | "video";
+    minCount: number;
+    allowMultiple: boolean;
+  }[];
+  media: StepMediaItem[];
   status: StatusRow;
   checked: string[];
   answers: Record<string, string>;
@@ -58,19 +66,48 @@ type Supabase = NonNullable<Awaited<ReturnType<typeof createClient>>>;
 
 // The saved answers on a step's current attempt.
 async function loadAnswers(supabase: Supabase, attemptId: string | null) {
-  if (!attemptId) return { ok: true as const, checked: [], answers: {}, answeredBy: {}, notes: "" };
-  const [checks, answers, attempt] = await Promise.all([
+  if (!attemptId) {
+    return { ok: true as const, checked: [], answers: {}, answeredBy: {}, notes: "", media: [] as StepMediaItem[] };
+  }
+  const [checks, answers, attempt, media] = await Promise.all([
     supabase.from("step_check_responses").select("*").eq("attempt_id", attemptId),
     supabase.from("step_input_responses").select("*").eq("attempt_id", attemptId),
     supabase.from("step_attempts").select("employee_notes").eq("id", attemptId).maybeSingle(),
+    // Row Level Security returns nothing to unassigned employees.
+    supabase
+      .from("step_media")
+      .select(
+        "id, proof_requirement_id, media_type, status, size_bytes, declared_size_bytes, duration_seconds, original_file_name, file_last_modified, uploaded_by, authorization_expires_at, failure_reason, created_at",
+      )
+      .eq("attempt_id", attemptId)
+      .in("status", ["pending", "uploaded", "failed"])
+      .order("created_at"),
   ]);
-  if (checks.error || answers.error || attempt.error) return { ok: false as const };
+  if (checks.error || answers.error || attempt.error || media.error) return { ok: false as const };
+  const now = Date.now();
   return {
     ok: true as const,
     checked: (checks.data ?? []).filter((c) => c.checked).map((c) => c.job_block_item_id),
     answers: Object.fromEntries((answers.data ?? []).map((a) => [a.job_step_input_id, answerText(a)])) as Record<string, string>,
     answeredBy: Object.fromEntries((answers.data ?? []).map((a) => [a.job_step_input_id, a.updated_by])) as Record<string, string>,
     notes: attempt.data?.employee_notes ?? "",
+    media: (media.data ?? []).map((m): StepMediaItem => {
+      const abandoned = m.status === "pending" && Date.parse(m.authorization_expires_at) <= now;
+      return {
+        id: m.id,
+        requirementId: m.proof_requirement_id,
+        mediaType: m.media_type,
+        status: abandoned ? "failed" : (m.status as StepMediaItem["status"]),
+        sizeBytes: m.size_bytes === null ? null : Number(m.size_bytes),
+        declaredSizeBytes: Number(m.declared_size_bytes),
+        durationSeconds: m.duration_seconds === null ? null : Number(m.duration_seconds),
+        fileName: m.original_file_name,
+        lastModified: m.file_last_modified === null ? null : Number(m.file_last_modified),
+        uploadedBy: m.uploaded_by,
+        authorizationExpiresAt: m.authorization_expires_at,
+        failureReason: abandoned ? "The upload wasn’t finished in time." : m.failure_reason,
+      };
+    }),
   };
 }
 
@@ -96,6 +133,7 @@ export async function getStepLive(stepId: string): Promise<LiveStep | null> {
     checked: saved.checked,
     answers: saved.answers,
     notes: saved.notes,
+    media: saved.media,
   };
 }
 
@@ -186,6 +224,7 @@ export async function getStepDetail(
         id: p.id,
         label: p.label,
         mediaType: p.media_type,
+        minCount: p.min_count,
         allowMultiple: p.allow_multiple,
       })),
       status: statuses.data,
@@ -193,6 +232,7 @@ export async function getStepDetail(
       answers: saved.answers,
       answeredBy: saved.answeredBy,
       notes: saved.notes,
+      media: saved.media,
       teamIds: (team.data ?? []).map((t) => t.employee_id),
       nextStepId: index >= 0 ? (ordered[index + 1]?.id ?? null) : null,
       previousStepId: index > 0 ? ordered[index - 1].id : null,
