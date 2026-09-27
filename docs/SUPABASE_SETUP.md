@@ -261,7 +261,22 @@ R2_BUCKET=armour-ops-media-dev
 
 If the values are missing, the step screen says "Uploads aren't set up yet" and nothing is uploaded.
 
-### 13.7 Try it
+### 13.7 Testing on a phone over Wi-Fi
+
+The phone and computer must be on the same Wi-Fi network.
+
+1. Run `npm run dev`. It prints a **Network** address such as `http://192.168.1.20:3000`.
+2. In `.env.local`, add (or update) this line with that address's host only, no `http://` and no port:
+   ```
+   DEV_LAN_HOSTS=192.168.1.20
+   ```
+   Without it, Next.js blocks its development scripts for any address other than `localhost`: the phone can load pages and sign in, but screens never become interactive (for example, a step stays on "Opening this step for editing…").
+3. Add the same full address (`http://192.168.1.20:3000`) to the bucket's CORS `AllowedOrigins` (13.3), or uploads from the phone are refused.
+4. Stop and restart `npm run dev`, then open the Network address on the phone.
+
+When the computer's address changes (a different network or router), update `DEV_LAN_HOSTS` and the CORS entry, and restart `npm run dev`. Nothing in the code changes. This setting only affects `npm run dev`; production is unaffected.
+
+### 13.8 Try it
 
 You need the owner, two active test employees (A and B) on a fictional job's team, one employee (C) who is not on the team, and a phone. Use test pictures and videos only, never a real customer's floor with identifying details.
 

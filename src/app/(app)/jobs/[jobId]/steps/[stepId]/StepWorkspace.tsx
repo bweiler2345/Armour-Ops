@@ -26,6 +26,7 @@ import { formatTime } from "@/lib/format";
 import type { StepMediaItem } from "@/lib/media/types";
 import { holdAfterRefusal, LEASE_MESSAGES, type LeaseRefusal } from "@/lib/steps/lease";
 import { mergeLive, sameAnswers, type LocalStep } from "@/lib/steps/sync";
+import { withTimeout } from "@/lib/timeout";
 import {
   missingForCompletion,
   parseInputValue,
@@ -40,6 +41,11 @@ import ProofUploader from "./ProofUploader";
 // within this time. While not editing, check for others' saves this often.
 // Both only run while the app is on screen.
 const HEARTBEAT_MS = 8_000;
+// Opening a step (getting a lease and the latest answers) gives up after
+// this long, so the screen never waits forever on a lost request.
+const OPEN_TIMEOUT_MS = 15_000;
+const OPEN_FAILED = "This step didn’t open. Check your connection, then tap Try again.";
+const NO_CONNECTION = "Couldn’t reach the server. Check your connection and try again.";
 
 type Hold =
   | { status: "acquiring" }
@@ -138,7 +144,7 @@ export default function StepWorkspace({
     (reason: LeaseRefusal) => {
       lease.current = null;
       setHold({ status: "refused", reason, message: LEASE_MESSAGES[reason] });
-      void sync(false);
+      void sync(false).catch(() => undefined);
     },
     [sync],
   );
@@ -156,21 +162,38 @@ export default function StepWorkspace({
   // screen.
   const acquire = useCallback(async () => {
     setHold({ status: "acquiring" });
-    const result = await acquireStepEdit(stepId);
+    const request = acquireStepEdit(stepId);
+    let result: StepResult;
+    try {
+      result = await withTimeout(request, OPEN_TIMEOUT_MS);
+    } catch {
+      lease.current = null;
+      setHold({ status: "error", message: OPEN_FAILED });
+      // If the lease arrives after all, give it back: this screen isn't using it.
+      request.then(
+        (late) => {
+          if (late.ok && late.lease && lease.current !== late.lease) {
+            void releaseStepEdit(stepId, late.lease).catch(() => undefined);
+          }
+        },
+        () => undefined,
+      );
+      return;
+    }
     if (!result.ok || !result.lease) {
       lease.current = null;
       if (!result.ok && result.reason !== "error") {
         setHold({ status: "refused", reason: result.reason, message: LEASE_MESSAGES[result.reason] });
-        void sync(false);
+        void sync(false).catch(() => undefined);
       } else {
         setHold({ status: "error", message: result.ok ? "Couldn’t start editing. Try again." : result.error });
       }
       return;
     }
 
-    const loaded = await sync(false);
+    const loaded = await withTimeout(sync(false), OPEN_TIMEOUT_MS).catch(() => false);
     if (!loaded) {
-      void releaseStepEdit(stepId, result.lease);
+      void releaseStepEdit(stepId, result.lease).catch(() => undefined);
       setHold({ status: "error", message: "Couldn’t load the latest answers. Try again." });
       return;
     }
@@ -184,8 +207,10 @@ export default function StepWorkspace({
   const heartbeat = useCallback(async () => {
     const current = lease.current;
     if (!current) return;
-    const result = await renewStepEdit(stepId, current);
-    if (lease.current !== current) return;
+    // A failed or lost renewal is tried again on the next beat; the lease
+    // lasts two minutes.
+    const result = await renewStepEdit(stepId, current).catch(() => null);
+    if (!result || lease.current !== current) return;
     if (result.ok) setHold({ status: "held", expiresAt: result.expiresAt ?? "" });
     else if (result.reason !== "error") stopEditing(result.reason);
   }, [stepId, stopEditing]);
@@ -200,7 +225,7 @@ export default function StepWorkspace({
     const tick = () => {
       if (document.visibilityState !== "visible") return;
       if (lease.current) void heartbeat();
-      else void sync(false);
+      else void sync(false).catch(() => undefined);
     };
     const timer = window.setInterval(tick, HEARTBEAT_MS);
     document.addEventListener("visibilitychange", tick);
@@ -209,20 +234,25 @@ export default function StepWorkspace({
       window.clearInterval(timer);
       document.removeEventListener("visibilitychange", tick);
       window.removeEventListener("focus", tick);
-      if (lease.current) void releaseStepEdit(stepId, lease.current);
+      if (lease.current) void releaseStepEdit(stepId, lease.current).catch(() => undefined);
       lease.current = null;
     };
   }, [acquire, heartbeat, stepId, sync]);
 
   // After an upload finishes or a file is removed, show the saved list.
-  const refreshMedia = useCallback(() => sync(lease.current !== null), [sync]);
+  const refreshMedia = useCallback(() => sync(lease.current !== null).catch(() => false), [sync]);
 
   const editable = hold.status === "held" && !done;
   const { checked, answers, notes, confirmed } = local;
 
   async function persist(run: () => Promise<StepResult>, onFail?: () => void) {
     setSave({ status: "saving" });
-    const result = await run();
+    const result = await run().catch(() => null);
+    if (!result) {
+      onFail?.();
+      setSave({ status: "error", message: NO_CONNECTION });
+      return false;
+    }
     if (result.ok) {
       setSave({ status: "saved" });
       return true;
@@ -300,8 +330,10 @@ export default function StepWorkspace({
   function complete() {
     setCompleteError(null);
     startCompleting(async () => {
-      const result = await completeStep(jobId, stepId, lease.current ?? "", confirmed);
-      if (result.ok) {
+      const result = await completeStep(jobId, stepId, lease.current ?? "", confirmed).catch(() => null);
+      if (!result) {
+        setCompleteError(NO_CONNECTION);
+      } else if (result.ok) {
         lease.current = null;
         setDone(true);
         router.refresh();
@@ -511,9 +543,16 @@ function HoldBanner({
 }) {
   if (hold.status === "acquiring") {
     return (
-      <p className="flex items-center gap-3 rounded-2xl border border-charcoal-700 bg-charcoal-900 p-4 text-[15px] text-charcoal-300">
-        <SpinnerIcon className="h-5 w-5" /> Opening this step for editing…
-      </p>
+      <div className="rounded-2xl border border-charcoal-700 bg-charcoal-900 p-4 text-[15px] text-charcoal-300">
+        <p className="flex items-center gap-3">
+          <SpinnerIcon className="h-5 w-5" /> Opening this step for editing…
+        </p>
+        {/* Appears only if this message is somehow still here after 20
+            seconds, even if the page's scripts never started. */}
+        <p className="reveal-late mt-2 text-gold-200">
+          This is taking too long. Check your connection and reload the page.
+        </p>
+      </div>
     );
   }
   if (hold.status === "held") {

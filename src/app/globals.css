@@ -62,3 +62,17 @@ body {
 .pb-safe {
   padding-bottom: env(safe-area-inset-bottom);
 }
+
+/* Shown only if a waiting message is still on screen after a while, even
+   when the page's scripts never started (no JavaScript needed). */
+@keyframes reveal-late {
+  to {
+    visibility: visible;
+    opacity: 1;
+  }
+}
+.reveal-late {
+  visibility: hidden;
+  opacity: 0;
+  animation: reveal-late 0.2s ease-out 20s forwards;
+}
