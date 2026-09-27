@@ -6,7 +6,8 @@ import {
 } from "@/components/Icons";
 import PageHeading, { SectionHeading } from "@/components/PageHeading";
 import { requireUser } from "@/lib/dal";
-import { formatDate, trailers } from "@/lib/mock-data";
+import { formatDate } from "@/lib/format";
+import { trailers } from "@/lib/mock-data";
 
 export const metadata: Metadata = {
   title: "Weekly Setup · Armour Ops",

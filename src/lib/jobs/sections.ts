@@ -1,0 +1,80 @@
+import { isActiveStatus, type JobStatus } from "./status";
+
+// Groups jobs into the employee Jobs screen sections from
+// docs/PRODUCT_SPEC.md ("Employee Jobs screen"), in that order.
+
+export type SectionJob = {
+  id: string;
+  status: JobStatus;
+  scheduledDate: string;
+  lastActivityAt: string;
+  completedAt: string | null;
+  // Employee ids on the job team. Always empty until job teams (Phase 4).
+  teamIds: readonly string[];
+};
+
+export type EmployeeSectionKey = "mine" | "other_active" | "available" | "scheduled" | "completed";
+
+export type JobSection<T> = {
+  key: EmployeeSectionKey;
+  title: string;
+  emptyText: string;
+  jobs: T[];
+};
+
+export const EMPLOYEE_SECTIONS: readonly Omit<JobSection<never>, "jobs">[] = [
+  {
+    key: "mine",
+    title: "My Current Jobs",
+    emptyText: "You’re not on any jobs yet. Jobs you’re assigned to will show here.",
+  },
+  {
+    key: "other_active",
+    title: "Other Active Jobs",
+    emptyText: "No other jobs are in progress right now.",
+  },
+  {
+    key: "available",
+    title: "Available Jobs",
+    emptyText: "No jobs are available to claim right now.",
+  },
+  {
+    key: "scheduled",
+    title: "Scheduled Jobs",
+    emptyText: "No upcoming jobs are scheduled yet.",
+  },
+  {
+    key: "completed",
+    title: "Completed Jobs",
+    emptyText: "No completed jobs yet.",
+  },
+];
+
+export function employeeSectionFor(job: SectionJob, userId: string): EmployeeSectionKey {
+  if (job.status === "complete") return "completed";
+  if (job.teamIds.includes(userId)) return "mine";
+  if (job.status === "scheduled") return "scheduled";
+  if (job.status === "available_to_claim") return "available";
+  return isActiveStatus(job.status) ? "other_active" : "scheduled";
+}
+
+const byDate = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+
+export function groupJobsForEmployee<T extends SectionJob>(
+  jobs: readonly T[],
+  userId: string,
+): JobSection<T>[] {
+  return EMPLOYEE_SECTIONS.map((section) => {
+    const inSection = jobs.filter((job) => employeeSectionFor(job, userId) === section.key);
+    const sorted = [...inSection].sort((a, b) => {
+      if (section.key === "completed") {
+        return byDate(b.completedAt ?? b.lastActivityAt, a.completedAt ?? a.lastActivityAt);
+      }
+      if (section.key === "available" || section.key === "scheduled") {
+        return byDate(a.scheduledDate, b.scheduledDate);
+      }
+      return byDate(b.lastActivityAt, a.lastActivityAt);
+    });
+    return { ...section, jobs: sorted };
+  });
+}

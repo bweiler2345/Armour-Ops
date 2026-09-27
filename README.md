@@ -95,7 +95,8 @@ src/
     workflow/             Approved workflow data, seed generator, spec parser, loader (with tests)
     supabase/             Supabase clients for the server, proxy, and server-only admin tasks
     database.types.ts     Database types (hand-written until the Supabase CLI is set up)
-    mock-data.ts          Temporary sample jobs and trailers
+    jobs/                 Job validation, statuses, Jobs screen sections, queries (with tests)
+    mock-data.ts          Temporary sample trailers for Weekly Setup
   test/                   Test-only helpers (runs migrations in an in-process Postgres)
 supabase/
   migrations/             Database schema and security rules
@@ -122,7 +123,7 @@ What exists:
 - The owner can reset a forgotten password (a new one-time temporary password), and deactivate or reactivate accounts, each after a confirmation. Owners cannot deactivate their own account, and the database refuses to deactivate the last active owner.
 - Account history records creation, password resets, deactivation, and reactivation without any password.
 - Everyone can change their own password on the Account screen. Users with a temporary password see a reminder.
-- The Jobs and Weekly Setup screens still use fictional sample data from `src/lib/mock-data.ts`. They are not real employees or customers.
+- The Weekly Setup screen still uses fictional sample trailers from `src/lib/mock-data.ts` until Phase 10.
 
 **Phase 2: approved workflow — complete and verified against the live Supabase project.** Both migrations ran, and the owner confirmed the stored workflow at `/owner/workflow` matches the approved specification. Setup steps are in `docs/SUPABASE_SETUP.md`, step 9.
 
@@ -130,4 +131,10 @@ What exists:
 - Published versions cannot be changed, so jobs will keep the version they started with.
 - Owners can review the stored workflow at `/owner/workflow`.
 
-Not built yet: role changes on the Team screen, the job workflow, photo and video uploads, Weekly Setup checklists, notifications, and deployment. See the implementation plan for the order.
+**Phase 3: jobs — built; waiting for the owner to run the Phase 3 database update** (see `docs/SUPABASE_SETUP.md`, step 10).
+
+- Owners create jobs at `/owner/jobs/new` (Caulking on, Baseboard off, and Allow Employees to Join on by default). Each new job starts as Scheduled and gets its own copy of the active workflow version, so later workflow changes never affect it.
+- Owners edit Scheduled jobs, make them available, and return them to Scheduled. Every change is kept in the job's history.
+- The Jobs screen shows real jobs in My Current Jobs, Other Active Jobs, Available Jobs, Scheduled Jobs, and Completed Jobs. Employees have read-only access.
+
+Not built yet: claiming and joining jobs, role changes on the Team screen, the job workflow steps, photo and video uploads, Weekly Setup checklists, notifications, and deployment. See the implementation plan for the order.

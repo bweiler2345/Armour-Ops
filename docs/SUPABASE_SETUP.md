@@ -128,3 +128,23 @@ Then check it:
    ```
 
    It should return one row: `armour-floors-standard`, version `1`, status `active`.
+
+## 10. Phase 3: Jobs
+
+Run this file in **SQL Editor** (new query, paste the whole file, select **Run**). The Phase 2 files must already have been run.
+
+1. `supabase/migrations/20260927030000_jobs.sql` creates jobs, per-job workflow snapshots, job history, the status rules, and read-only access for employees. It should finish with "Success. No rows returned."
+
+Then check it with fictional test data only (no real customer names or addresses):
+
+1. Sign in as the owner. Open **Owner Dashboard**, then **Jobs**. Every section shows an empty message.
+2. Select **New Job**. Check that **Caulking** and **Allow Employees to Join** are on and **Baseboard** is off. Select **Create Job** with everything blank and confirm each required field shows an error. Try a square footage of `0` and of `abc`.
+3. Fill in a fictional client, address, square footage (for example `1,250`), flake color, and a date, and create the job. The job page shows status **Scheduled**, workflow version 1, and a **History** entry for the creation.
+4. Select **Edit Details**, change the square footage and turn on **Baseboard**, and save. History shows both changes with old and new values, and the workflow outline now includes Baseboard Complete.
+5. Select **Make Available**. The status becomes **Available to Claim** and Edit Details disappears. Select **Return to Scheduled** and confirm it goes back.
+6. Sign in as an employee (a private window works). **Jobs** shows the job under **Scheduled Jobs** (or **Available Jobs** if you made it available), with every card field. Opening it shows the details read only, with no edit or status buttons. Visiting `/owner/jobs` sends the employee back to Jobs.
+7. Optional check in **SQL Editor**:
+
+   ```sql
+   select job_number, status, workflow_version from public.jobs;
+   ```
