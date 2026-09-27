@@ -3,6 +3,7 @@ import EmptyState from "@/components/EmptyState";
 import { AlertIcon } from "@/components/Icons";
 import JobCard from "@/components/JobCard";
 import PageHeading, { SectionHeading } from "@/components/PageHeading";
+import TeamActionButton from "@/components/TeamActionButton";
 import TemporaryPasswordReminder from "@/components/TemporaryPasswordReminder";
 import { requireUser } from "@/lib/dal";
 import { listJobCards } from "@/lib/jobs/queries";
@@ -54,6 +55,11 @@ export default async function JobsPage() {
                       job={job}
                       href={`/jobs/${job.id}`}
                       highlight={section.key === "mine"}
+                      footer={
+                        section.key === "available" && user.role === "employee" ? (
+                          <TeamActionButton jobId={job.id} kind="claim" />
+                        ) : undefined
+                      }
                     />
                   ))}
                 </div>

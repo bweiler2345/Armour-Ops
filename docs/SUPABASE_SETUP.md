@@ -148,3 +148,21 @@ Then check it with fictional test data only (no real customer names or addresses
    ```sql
    select job_number, status, workflow_version from public.jobs;
    ```
+
+## 11. Phase 4: Claiming and job teams
+
+Run this file in **SQL Editor** (new query, paste the whole file, select **Run**). The Phase 3 file must already have been run.
+
+1. `supabase/migrations/20260927040000_job_teams.sql` adds job teams (one lead plus members), claiming, joining, owner team management, and team history. It should finish with "Success. No rows returned."
+
+You need the owner account and at least **three active employee accounts** (create test employees on the Team screen if needed). Use a fictional job. A private window, or a second phone, makes switching accounts easier.
+
+1. **Claim.** As the owner, create a job and select **Make Available**. As Employee A, open **Jobs**: the job is under **Available Jobs** with a large **Claim Job** button. Claim it. It moves to **My Current Jobs**, its status is **Claimed**, and the team shows Employee A as **Lead**.
+2. **Losing claim.** Make a second job available. Open it as Employee B in one window and Employee C in another, then select **Claim Job** in both, one right after the other. One succeeds; the other shows "Someone else claimed this job first." and is not added.
+3. **Join.** As Employee B, open the first job (under **Other Active Jobs**) and select **Join Job**. The team shows A as Lead and B as Member, and the job moves to B's **My Current Jobs**.
+4. **Joining off.** As the owner, open the first job and select **Turn Joining Off**. As Employee C, open the job: there is no Join button, and it says the owner turned off joining.
+5. **Owner adds.** As the owner, with joining still off, add Employee C. The team now has three people.
+6. **Lead rules.** As the owner, select **Remove** on the lead (Employee A). The dialog requires choosing a new lead; choose Employee B and confirm. B is Lead, A is gone, and **History** shows the removal and the lead change with names and times. Then select **Make Lead** on Employee C: C becomes Lead and B stays as a Member.
+7. **Remove a member.** Remove Employee B. History keeps the removal.
+8. **Deactivated employee.** On the Team screen, deactivate a test employee who is on a job. Their name stays on the job team marked **Deactivated**, and they can no longer sign in. Reactivate them afterwards.
+9. **Read only.** As an employee who is not on a job, open it: you see the team but can't change anything. Visiting `/owner/jobs` sends you back to Jobs.

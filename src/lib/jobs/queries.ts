@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/database.types";
 import { isUuid } from "./errors";
 import { JOB_STATUS_LABELS, type JobStatus } from "./status";
+import { sortTeam, teamLabel, type TeamMember } from "./team";
 
 // Reads jobs with the signed-in user's own session, so Row Level Security
 // decides what is visible. Callers must run requireUser() or requireOwner()
@@ -10,6 +11,18 @@ import { JOB_STATUS_LABELS, type JobStatus } from "./status";
 
 type JobRow = Database["public"]["Tables"]["jobs"]["Row"];
 type ProgressRow = Database["public"]["Views"]["job_progress"]["Row"];
+type TeamRow = Database["public"]["Views"]["job_team"]["Row"];
+
+function toTeam(rows: readonly TeamRow[]): TeamMember[] {
+  return sortTeam(
+    rows.map((row) => ({
+      employeeId: row.employee_id,
+      name: row.full_name,
+      role: row.role,
+      active: row.employee_active,
+    })),
+  );
+}
 
 export type JobCardData = {
   id: string;
@@ -21,8 +34,9 @@ export type JobCardData = {
   scheduledDate: string;
   status: JobStatus;
   statusLabel: string;
-  // Job teams arrive in Phase 4; until then no one is assigned.
+  team: TeamMember[];
   teamIds: string[];
+  // Lead first, marked "(Lead)".
   teamNames: string[];
   currentStageName: string | null;
   currentStepTitle: string | null;
@@ -31,7 +45,12 @@ export type JobCardData = {
   completedAt: string | null;
 };
 
-export function toJobCard(job: JobRow, progress: ProgressRow | undefined): JobCardData {
+export function toJobCard(
+  job: JobRow,
+  progress: ProgressRow | undefined,
+  teamRows: readonly TeamRow[] = [],
+): JobCardData {
+  const team = toTeam(teamRows);
   const total = progress?.total_units ?? 0;
   const completed = progress?.completed_units ?? 0;
   return {
@@ -44,8 +63,9 @@ export function toJobCard(job: JobRow, progress: ProgressRow | undefined): JobCa
     scheduledDate: job.scheduled_date,
     status: job.status,
     statusLabel: JOB_STATUS_LABELS[job.status],
-    teamIds: [],
-    teamNames: [],
+    team,
+    teamIds: team.map((m) => m.employeeId),
+    teamNames: team.map(teamLabel),
     currentStageName: progress?.current_stage_name ?? null,
     currentStepTitle: progress?.current_step_title ?? null,
     progress: {
@@ -64,16 +84,23 @@ export async function listJobCards(): Promise<
   const supabase = await createClient();
   if (!supabase) return { status: "error" };
 
-  const [jobs, progress] = await Promise.all([
+  const [jobs, progress, teams] = await Promise.all([
     supabase.from("jobs").select("*").order("scheduled_date"),
     supabase.from("job_progress").select("*"),
+    supabase.from("job_team").select("*"),
   ]);
-  if (jobs.error || progress.error) return { status: "error" };
+  if (jobs.error || progress.error || teams.error) return { status: "error" };
 
   const progressByJob = new Map((progress.data ?? []).map((p) => [p.job_id, p]));
+  const teamsByJob = new Map<string, TeamRow[]>();
+  for (const row of teams.data ?? []) {
+    teamsByJob.set(row.job_id, [...(teamsByJob.get(row.job_id) ?? []), row]);
+  }
   return {
     status: "ok",
-    jobs: (jobs.data ?? []).map((job) => toJobCard(job, progressByJob.get(job.id))),
+    jobs: (jobs.data ?? []).map((job) =>
+      toJobCard(job, progressByJob.get(job.id), teamsByJob.get(job.id)),
+    ),
   };
 }
 
@@ -96,20 +123,23 @@ export async function getJobDetail(
   const supabase = await createClient();
   if (!supabase) return { status: "error" };
 
-  const [job, progress, stages, steps] = await Promise.all([
+  const [job, progress, stages, steps, team] = await Promise.all([
     supabase.from("jobs").select("*").eq("id", jobId).maybeSingle(),
     supabase.from("job_progress").select("*").eq("job_id", jobId).maybeSingle(),
     supabase.from("job_stages").select("*").eq("job_id", jobId).order("position"),
     supabase.from("job_steps").select("*").eq("job_id", jobId).order("position"),
+    supabase.from("job_team").select("*").eq("job_id", jobId),
   ]);
-  if (job.error || progress.error || stages.error || steps.error) return { status: "error" };
+  if (job.error || progress.error || stages.error || steps.error || team.error) {
+    return { status: "error" };
+  }
   if (!job.data) return { status: "missing" };
 
   return {
     status: "ok",
     detail: {
       job: job.data,
-      card: toJobCard(job.data, progress.data ?? undefined),
+      card: toJobCard(job.data, progress.data ?? undefined, team.data ?? []),
       stages: (stages.data ?? []).map((stage) => ({
         id: stage.id,
         name: stage.name,
@@ -132,6 +162,8 @@ export type JobActivityEntry = {
   id: number;
   type: Database["public"]["Tables"]["job_activity"]["Row"]["activity_type"];
   actorName: string | null;
+  // Names of employees mentioned in the details (employee_id, from/to lead).
+  names: Record<string, string>;
   details: Database["public"]["Tables"]["job_activity"]["Row"]["details"];
   createdAt: string;
 };
@@ -150,9 +182,13 @@ export async function getJobActivity(jobId: string): Promise<JobActivityEntry[] 
     .order("id", { ascending: false });
   if (error) return null;
 
-  const actorIds = [...new Set((data ?? []).map((a) => a.actor_id).filter((id): id is string => !!id))];
-  const { data: people } = actorIds.length
-    ? await supabase.from("profiles").select("id, full_name").in("id", actorIds)
+  const mentioned = (data ?? []).flatMap((entry) => {
+    const details = (entry.details ?? {}) as Record<string, unknown>;
+    return [entry.actor_id, details.employee_id, details.from_employee_id, details.to_employee_id];
+  });
+  const personIds = [...new Set(mentioned.filter((id): id is string => isUuid(id)))];
+  const { data: people } = personIds.length
+    ? await supabase.from("profiles").select("id, full_name").in("id", personIds)
     : { data: [] };
   const names = new Map((people ?? []).map((p) => [p.id, p.full_name]));
 
@@ -160,7 +196,24 @@ export async function getJobActivity(jobId: string): Promise<JobActivityEntry[] 
     id: entry.id,
     type: entry.activity_type,
     actorName: entry.actor_id ? (names.get(entry.actor_id) ?? null) : null,
+    names: Object.fromEntries(names),
     details: entry.details,
     createdAt: entry.created_at,
   }));
+}
+
+export type EmployeeOption = { id: string; name: string };
+
+// Owner pages only: active employees who can be added to a team.
+export async function listActiveEmployees(): Promise<EmployeeOption[] | null> {
+  const supabase = await createClient();
+  if (!supabase) return null;
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, full_name, role, active")
+    .eq("role", "employee")
+    .eq("active", true)
+    .order("full_name");
+  if (error) return null;
+  return (data ?? []).map((p) => ({ id: p.id, name: p.full_name.trim() || "Unnamed employee" }));
 }

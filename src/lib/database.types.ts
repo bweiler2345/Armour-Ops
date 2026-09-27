@@ -1,4 +1,4 @@
-// Hand-written to match supabase/migrations (Phases 1 to 3). Replace with
+// Hand-written to match supabase/migrations (Phases 1 to 4). Replace with
 // the output of `supabase gen types typescript` once the Supabase CLI is set up.
 
 type AppRole = "owner" | "employee";
@@ -20,7 +20,15 @@ type JobActivityType =
   | "job_created"
   | "job_details_edited"
   | "made_available"
-  | "returned_to_scheduled";
+  | "returned_to_scheduled"
+  | "claimed"
+  | "employee_joined"
+  | "employee_added"
+  | "employee_removed"
+  | "lead_changed"
+  | "join_setting_changed";
+type AssignmentRole = "lead" | "member";
+type AssignmentMethod = "claimed" | "joined" | "added_by_owner" | "lead_change";
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 type AccountEventType =
   | "account_created"
@@ -277,6 +285,23 @@ export type Database = {
         Update: never;
         Relationships: [];
       };
+      job_assignments: {
+        Row: {
+          id: string;
+          job_id: string;
+          employee_id: string;
+          role: AssignmentRole;
+          method: AssignmentMethod;
+          assigned_at: string;
+          assigned_by: string;
+          ended_at: string | null;
+          ended_by: string | null;
+          end_reason: "removed_by_owner" | "role_changed" | null;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
       job_activity: {
         Row: {
           id: number;
@@ -292,6 +317,18 @@ export type Database = {
       };
     };
     Views: {
+      job_team: {
+        Row: {
+          job_id: string;
+          employee_id: string;
+          role: AssignmentRole;
+          method: AssignmentMethod;
+          assigned_at: string;
+          full_name: string;
+          employee_active: boolean;
+        };
+        Relationships: [];
+      };
       job_progress: {
         Row: {
           job_id: string;
@@ -348,6 +385,15 @@ export type Database = {
         Returns: undefined;
       };
       make_job_available: { Args: { p_job: string }; Returns: undefined };
+      claim_job: { Args: { p_job: string }; Returns: undefined };
+      join_job: { Args: { p_job: string }; Returns: undefined };
+      add_team_member: { Args: { p_job: string; p_employee: string }; Returns: undefined };
+      change_lead: { Args: { p_job: string; p_new_lead: string }; Returns: undefined };
+      remove_team_member: {
+        Args: { p_job: string; p_employee: string; p_new_lead?: string | null };
+        Returns: undefined;
+      };
+      set_job_join_setting: { Args: { p_job: string; p_allow: boolean }; Returns: undefined };
       return_job_to_scheduled: { Args: { p_job: string }; Returns: undefined };
       admin_set_account_active: {
         Args: { p_target: string; p_actor: string; p_active: boolean };

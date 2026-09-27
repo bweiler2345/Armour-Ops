@@ -19,11 +19,15 @@ export default function JobCard({
   href,
   actionLabel = "View Job",
   highlight = false,
+  footer,
 }: {
   job: JobCardData;
   href: string;
   actionLabel?: string;
   highlight?: boolean;
+  // Replaces the main button (for example, Claim Job), with a smaller link
+  // to the job below it.
+  footer?: React.ReactNode;
 }) {
   const notStarted = job.progress.completed === 0;
 
@@ -114,17 +118,29 @@ export default function JobCard({
           </div>
         </div>
 
-        <Link
-          href={href}
-          className={`mt-5 flex min-h-16 w-full items-center justify-center gap-2 rounded-2xl text-lg font-semibold transition active:scale-[0.98] ${
-            highlight
-              ? "gold-gradient text-charcoal-950 shadow-lg shadow-black/30"
-              : "border border-gold-500/50 bg-charcoal-800 text-gold-300 hover:bg-charcoal-700"
-          }`}
-        >
-          {actionLabel}
-          <ChevronRightIcon className="h-6 w-6" />
-        </Link>
+        {footer ? (
+          <div className="mt-5 flex flex-col gap-2">
+            {footer}
+            <Link
+              href={href}
+              className="flex min-h-12 items-center justify-center text-[15px] font-semibold text-gold-300"
+            >
+              View details
+            </Link>
+          </div>
+        ) : (
+          <Link
+            href={href}
+            className={`mt-5 flex min-h-16 w-full items-center justify-center gap-2 rounded-2xl text-lg font-semibold transition active:scale-[0.98] ${
+              highlight
+                ? "gold-gradient text-charcoal-950 shadow-lg shadow-black/30"
+                : "border border-gold-500/50 bg-charcoal-800 text-gold-300 hover:bg-charcoal-700"
+            }`}
+          >
+            {actionLabel}
+            <ChevronRightIcon className="h-6 w-6" />
+          </Link>
+        )}
       </div>
     </article>
   );

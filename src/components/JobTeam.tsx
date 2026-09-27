@@ -1,0 +1,52 @@
+import { SectionHeading } from "@/components/PageHeading";
+import type { TeamMember } from "@/lib/jobs/team";
+
+// Read-only job team: lead first, then members.
+export default function JobTeam({
+  team,
+  currentUserId,
+}: {
+  team: readonly TeamMember[];
+  currentUserId: string;
+}) {
+  return (
+    <section aria-labelledby="job-team" className="mt-8">
+      <SectionHeading id="job-team" title="Team" count={team.length} />
+      {team.length === 0 ? (
+        <p className="rounded-2xl border border-dashed border-charcoal-700 p-5 text-center text-[15px] text-charcoal-400">
+          No one is assigned to this job yet.
+        </p>
+      ) : (
+        <ul className="flex flex-col gap-2">
+          {team.map((member) => (
+            <li
+              key={member.employeeId}
+              className="flex min-h-14 items-center justify-between gap-3 rounded-2xl border border-charcoal-800 bg-charcoal-900 px-4 py-3"
+            >
+              <span className="min-w-0 text-[17px] font-semibold break-words text-white">
+                {member.name.trim() || "Unnamed employee"}
+                {member.employeeId === currentUserId && (
+                  <span className="ml-2 rounded-full bg-white/10 px-2 py-0.5 text-xs font-semibold text-charcoal-300">
+                    You
+                  </span>
+                )}
+                {!member.active && (
+                  <span className="ml-2 text-sm font-normal text-red-300">Deactivated</span>
+                )}
+              </span>
+              <span
+                className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ring-1 ${
+                  member.role === "lead"
+                    ? "bg-gold-400/15 text-gold-300 ring-gold-400/40"
+                    : "bg-white/5 text-charcoal-300 ring-white/15"
+                }`}
+              >
+                {member.role === "lead" ? "Lead" : "Member"}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}

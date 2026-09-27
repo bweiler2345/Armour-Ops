@@ -6,8 +6,14 @@ import { JobSummary, JobWorkflowOutline } from "@/components/JobDetails";
 import { SectionHeading } from "@/components/PageHeading";
 import { requireOwner } from "@/lib/dal";
 import { formatDateTime } from "@/lib/format";
-import { getJobActivity, getJobDetail, type JobActivityEntry } from "@/lib/jobs/queries";
+import {
+  getJobActivity,
+  getJobDetail,
+  listActiveEmployees,
+  type JobActivityEntry,
+} from "@/lib/jobs/queries";
 import JobStatusControls from "../JobStatusControls";
+import OwnerTeamPanel from "../OwnerTeamPanel";
 
 export const metadata: Metadata = {
   title: "Manage Job · Armour Ops",
@@ -16,7 +22,11 @@ export const metadata: Metadata = {
 export default async function OwnerJobPage({ params }: PageProps<"/owner/jobs/[jobId]">) {
   await requireOwner();
   const { jobId } = await params;
-  const [result, activity] = await Promise.all([getJobDetail(jobId), getJobActivity(jobId)]);
+  const [result, activity, employees] = await Promise.all([
+    getJobDetail(jobId),
+    getJobActivity(jobId),
+    listActiveEmployees(),
+  ]);
   if (result.status === "missing") notFound();
 
   if (result.status === "error") {
@@ -65,6 +75,14 @@ export default async function OwnerJobPage({ params }: PageProps<"/owner/jobs/[j
         )}
       </div>
 
+      <OwnerTeamPanel
+        jobId={job.id}
+        status={job.status}
+        allowEmployeesToJoin={job.allow_employees_to_join}
+        team={detail.card.team}
+        employees={employees}
+      />
+
       <JobWorkflowOutline detail={detail} />
 
       <section aria-labelledby="job-history" className="mt-8">
@@ -108,19 +126,22 @@ function describeValue(value: unknown) {
 
 function HistoryEntry({ entry }: { entry: JobActivityEntry }) {
   const who = entry.actorName || "Someone";
+  const details = (entry.details ?? {}) as Record<string, unknown>;
+  const person = (key: string) => {
+    const id = details[key];
+    return (typeof id === "string" && entry.names[id]) || "an employee";
+  };
   let title: string;
   let changes: string[] = [];
 
   switch (entry.type) {
-    case "job_created": {
-      const details = entry.details as { workflow_version?: number } | null;
-      title = `${who} created the job (workflow version ${details?.workflow_version ?? "?"})`;
+    case "job_created":
+      title = `${who} created the job (workflow version ${String(details.workflow_version ?? "?")})`;
       break;
-    }
     case "job_details_edited": {
       title = `${who} edited the job details`;
-      const details = entry.details as { changes?: Record<string, { from: unknown; to: unknown }> };
-      changes = Object.entries(details?.changes ?? {}).map(
+      const edits = (details.changes ?? {}) as Record<string, { from: unknown; to: unknown }>;
+      changes = Object.entries(edits).map(
         ([field, change]) =>
           `${FIELD_LABELS[field] ?? field}: ${describeValue(change.from)} → ${describeValue(change.to)}`,
       );
@@ -128,6 +149,26 @@ function HistoryEntry({ entry }: { entry: JobActivityEntry }) {
     }
     case "made_available":
       title = `${who} made the job available to claim`;
+      break;
+    case "claimed":
+      title = `${who} claimed the job and became the lead`;
+      break;
+    case "employee_joined":
+      title = `${who} joined the job`;
+      break;
+    case "employee_added":
+      title = `${who} added ${person("employee_id")}${details.role === "lead" ? " as lead" : ""}`;
+      break;
+    case "employee_removed":
+      title = `${who} removed ${person("employee_id")}${details.role === "lead" ? " (lead)" : ""}`;
+      break;
+    case "lead_changed":
+      title = details.from_employee_id
+        ? `${who} changed the lead from ${person("from_employee_id")} to ${person("to_employee_id")}`
+        : `${who} made ${person("to_employee_id")} the lead`;
+      break;
+    case "join_setting_changed":
+      title = `${who} turned Allow Employees to Join ${details.to ? "on" : "off"}`;
       break;
     case "returned_to_scheduled":
       title = `${who} returned the job to Scheduled`;

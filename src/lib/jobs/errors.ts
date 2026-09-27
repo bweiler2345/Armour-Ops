@@ -19,7 +19,10 @@ export function jobErrorMessage(error: { code?: string; message?: string } | nul
         ? JOB_ERROR_MESSAGES.notFound
         : JOB_ERROR_MESSAGES.noWorkflow;
     case "42501":
-      return JOB_ERROR_MESSAGES.notOwner;
+      // Our role checks say who may act; Postgres permission errors do not.
+      return error.message?.startsWith("Only an active")
+        ? error.message
+        : JOB_ERROR_MESSAGES.notOwner;
     case "P0001":
       return error.message || JOB_ERROR_MESSAGES.generic;
     case "23502":
