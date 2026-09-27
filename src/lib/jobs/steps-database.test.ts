@@ -564,6 +564,82 @@ describe("Collect Excess Flake", () => {
   });
 });
 
+describe("two open screens stay in step", () => {
+  // What an open step screen loads (the same reads as getStepLive), as the
+  // given employee.
+  async function screen(userId: string, stepId: string) {
+    return as(db, { userId }, async () => {
+      const [status] = await rows<{ state: string; attempt_id: string | null; hold_held_by: string | null }>(
+        `select state, attempt_id, hold_held_by from public.job_step_status where job_step_id = $1`,
+        [stepId],
+      );
+      const checked = status.attempt_id
+        ? (
+            await rows<{ job_block_item_id: string }>(
+              `select job_block_item_id from public.step_check_responses where attempt_id = $1 and checked`,
+              [status.attempt_id],
+            )
+          ).map((r) => r.job_block_item_id)
+        : [];
+      return { state: status.state, holder: status.hold_held_by, checked: checked.sort() };
+    });
+  }
+
+  it("shows B's save on A's screen, and A reacquires with all saved answers", async () => {
+    const job = await teamJob();
+    const first = await step(job, "initial_prep", "grind_floor");
+    const items = await checkAllIds(first);
+
+    // A opens the step and saves two checks.
+    await call(a, "acquire_step_edit", first);
+    await call(a, "save_step_check", first, items[0], true);
+    await call(a, "save_step_check", first, items[1], true);
+    expect((await screen(a, first)).checked).toEqual([items[0], items[1]].sort());
+
+    // A's hold runs out while A's screen stays open; B takes over and saves
+    // the third check.
+    await db.query(
+      `update public.step_edit_holds set acquired_at = now() - interval '5 minutes',
+         expires_at = now() - interval '1 second' where job_step_id = $1`,
+      [first],
+    );
+    await call(b, "acquire_step_edit", first);
+    await call(b, "save_step_check", first, items[2], true);
+
+    // A's next load sees all three and that B holds the step.
+    const aSees = await screen(a, first);
+    expect(aSees.checked).toEqual([items[0], items[1], items[2]].sort());
+    expect(aSees.holder).toBe(b);
+
+    // A can't save over B while B holds it.
+    await expect(call(a, "save_step_check", first, items[2], false)).rejects.toThrow(/Someone else is editing/);
+
+    // B leaves; A reacquires and loads the current answers, including B's.
+    await call(b, "release_step_edit", first);
+    await call(a, "acquire_step_edit", first);
+    const afterReacquire = await screen(a, first);
+    expect(afterReacquire.holder).toBe(a);
+    expect(afterReacquire.checked).toEqual([items[0], items[1], items[2]].sort());
+
+    // B's check is attributed to B.
+    const [third] = await rows<{ updated_by: string }>(
+      `select updated_by from public.step_check_responses where job_step_id = $1 and job_block_item_id = $2`,
+      [first, items[2]],
+    );
+    expect(third.updated_by).toBe(b);
+  });
+
+  it("shows an unassigned viewer the latest saves too", async () => {
+    const job = await teamJob();
+    const first = await step(job, "initial_prep", "grind_floor");
+    const items = await checkAllIds(first);
+    expect((await screen(outsider, first)).checked).toEqual([]);
+    await call(a, "acquire_step_edit", first);
+    await call(a, "save_step_check", first, items[0], true);
+    expect((await screen(outsider, first)).checked).toEqual([items[0]]);
+  });
+});
+
 describe("waiting statuses and owner milestones", () => {
   // A small published workflow with no media, so a whole run can be tested.
   async function noMediaJob() {
@@ -653,3 +729,4 @@ describe("waiting statuses and owner milestones", () => {
     ]);
   });
 });
+

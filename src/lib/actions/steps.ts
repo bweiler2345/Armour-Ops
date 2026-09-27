@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { requireOwner, requireUser } from "@/lib/dal";
 import { isUuid, jobErrorMessage, JOB_ERROR_MESSAGES } from "@/lib/jobs/errors";
 import { createClient } from "@/lib/supabase/server";
+import { getStepLive } from "@/lib/steps/queries";
+import type { LiveStep } from "@/lib/steps/sync";
 
 // Step work. Every action checks the signed-in user here and then calls a
 // database function that checks the team, the step's state, and the edit
@@ -117,4 +119,10 @@ function refresh(jobId: string, stepId: string) {
   revalidatePath(`/jobs/${jobId}/steps/${stepId}`);
   revalidatePath("/owner/jobs");
   revalidatePath(`/owner/jobs/${jobId}`);
+}
+
+// The latest saved answers, hold, and state for an open step screen.
+export async function loadStepLive(stepId: string): Promise<LiveStep | null> {
+  await requireUser();
+  return getStepLive(stepId);
 }

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import AutoRefresh from "@/components/AutoRefresh";
 import { AlertIcon, CheckIcon, ChevronRightIcon } from "@/components/Icons";
 import { JobSummary } from "@/components/JobDetails";
 import JobTeam from "@/components/JobTeam";
@@ -85,6 +86,7 @@ export default async function JobPage({ params }: PageProps<"/jobs/[jobId]">) {
 
       <JobTeam team={detail.card.team} currentUserId={user.id} />
       <WorkflowMap detail={detail} statuses={statuses} />
+      {detail.job.status !== "complete" && <AutoRefresh everyMs={15_000} />}
     </>
   );
 }

@@ -18,10 +18,12 @@ import {
   releaseStepEdit,
   saveStepCheck,
   saveStepInput,
+  loadStepLive,
   saveStepNotes,
   type StepResult,
 } from "@/lib/actions/steps";
 import { formatTime } from "@/lib/format";
+import { mergeLive, sameAnswers, type LocalStep } from "@/lib/steps/sync";
 import {
   missingForCompletion,
   parseInputValue,
@@ -31,6 +33,9 @@ import {
 
 // Renews the edit hold while the screen is open (the hold lasts two minutes).
 const RENEW_EVERY_MS = 30_000;
+// While someone else is editing, check for their saved work this often
+// (only while the app is on screen).
+const WATCH_EVERY_MS = 8_000;
 
 type Hold =
   | { status: "acquiring" }
@@ -72,64 +77,123 @@ export default function StepWorkspace({
 }) {
   const router = useRouter();
   const [hold, setHold] = useState<Hold>({ status: "acquiring" });
-  const [checked, setChecked] = useState(() => new Set(initialChecked));
-  const [answers, setAnswers] = useState<Record<string, string>>(initialAnswers);
+  const [local, setLocal] = useState<LocalStep>(() => ({
+    checked: new Set(initialChecked),
+    answers: initialAnswers,
+    notes: initialNotes,
+    confirmed: false,
+  }));
+  const [holder, setHolder] = useState({ name: holderName, expiresAt: holderExpiresAt });
   const [inputErrors, setInputErrors] = useState<Record<string, string>>({});
-  const [notes, setNotes] = useState(initialNotes);
   const [save, setSave] = useState<Save>({ status: "idle" });
-  const [confirmed, setConfirmed] = useState(false);
   const [completing, startCompleting] = useTransition();
   const [completeError, setCompleteError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const holding = useRef(false);
+  const holdExpiresAt = useRef(0);
+  // Changes on this screen the database hasn't confirmed yet. Refreshes never
+  // overwrite these.
+  const unsaved = useRef({ checks: new Set<string>(), inputs: new Set<string>(), notes: false });
 
-  const handleFailure = useCallback((result: Extract<StepResult, { ok: false }>) => {
-    if (result.reason === "conflict") {
-      holding.current = false;
-      setHold({ status: "conflict", message: result.error });
-    } else if (result.reason === "expired") {
-      holding.current = false;
-      setHold({ status: "expired", message: result.error });
-    }
-    return result.error;
-  }, []);
+  // Replace the screen's copy of the answers with the latest saved version.
+  const sync = useCallback(
+    async (keptHold: boolean) => {
+      const live = await loadStepLive(stepId);
+      if (!live) return false;
+      if (live.state === "completed") {
+        // A teammate finished it; the page re-renders as completed.
+        router.refresh();
+        return true;
+      }
+      setHolder({ name: live.holdHeldByName, expiresAt: live.holdExpiresAt });
+      const pending = {
+        checks: new Set(unsaved.current.checks),
+        inputs: new Set(unsaved.current.inputs),
+        notes: unsaved.current.notes,
+      };
+      setLocal((current) => {
+        const next = mergeLive(current, live, { unsaved: pending, keptHold });
+        return sameAnswers(current, next) ? current : next;
+      });
+      return true;
+    },
+    [router, stepId],
+  );
 
+  const handleFailure = useCallback(
+    (result: Extract<StepResult, { ok: false }>) => {
+      if (result.reason === "conflict" || result.reason === "expired") {
+        holding.current = false;
+        setHold({ status: result.reason, message: result.error });
+        // Show what the other person saved.
+        void sync(false);
+      }
+      return result.error;
+    },
+    [sync],
+  );
+
+  // Takes or renews the edit hold, then loads the latest saved answers before
+  // editing is allowed, so nobody edits from an out-of-date screen.
   const acquire = useCallback(async () => {
+    const keptHold = holding.current && holdExpiresAt.current > Date.now();
     const result = await acquireStepEdit(stepId);
-    if (result.ok) {
-      holding.current = true;
-      setHold({ status: "held", expiresAt: result.expiresAt ?? "" });
-    } else if (result.reason === "conflict") {
+    if (!result.ok) {
       holding.current = false;
-      setHold({ status: "conflict", message: result.error });
-    } else {
-      holding.current = false;
-      setHold({ status: "error", message: result.error });
+      if (result.reason === "conflict") {
+        setHold({ status: "conflict", message: result.error });
+        void sync(false);
+      } else {
+        setHold({ status: "error", message: result.error });
+      }
+      return;
     }
-  }, [stepId]);
 
-  // Take the hold when the screen opens, renew it while open, and give it
-  // back on leave so a teammate can continue right away.
+    if (!keptHold) setHold({ status: "acquiring" });
+    const loaded = await sync(keptHold);
+    if (!loaded) {
+      holding.current = false;
+      void releaseStepEdit(stepId);
+      setHold({ status: "error", message: "Couldn’t load the latest answers. Try again." });
+      return;
+    }
+    holding.current = true;
+    holdExpiresAt.current = result.expiresAt ? Date.parse(result.expiresAt) : 0;
+    setHold({ status: "held", expiresAt: result.expiresAt ?? "" });
+  }, [stepId, sync]);
+
+  // Take the hold when the screen opens and renew it while open. While someone
+  // else holds it, keep showing their saved work. Catch up whenever the app
+  // comes back to the foreground. Give the hold back on leave.
   useEffect(() => {
-    // Asynchronous: the hold state is set when the server answers.
+    // Asynchronous: state is set when the server answers.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void acquire();
     const renew = window.setInterval(() => {
       if (holding.current) void acquire();
     }, RENEW_EVERY_MS);
+    const watch = window.setInterval(() => {
+      if (!holding.current && document.visibilityState === "visible") void sync(false);
+    }, WATCH_EVERY_MS);
     const onVisible = () => {
-      if (document.visibilityState === "visible" && holding.current) void acquire();
+      if (document.visibilityState !== "visible") return;
+      if (holding.current) void acquire();
+      else void sync(false);
     };
     document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
     return () => {
       window.clearInterval(renew);
+      window.clearInterval(watch);
       document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
       if (holding.current) void releaseStepEdit(stepId);
       holding.current = false;
     };
-  }, [acquire, stepId]);
+  }, [acquire, stepId, sync]);
 
   const editable = hold.status === "held" && !done;
+  const { checked, answers, notes, confirmed } = local;
 
   async function persist(run: () => Promise<StepResult>, onFail?: () => void) {
     setSave({ status: "saving" });
@@ -143,25 +207,25 @@ export default function StepWorkspace({
     return false;
   }
 
-  function toggleCheck(id: string) {
+  function setChecked(id: string, on: boolean) {
+    setLocal((current) => {
+      const copy = new Set(current.checked);
+      if (on) copy.add(id);
+      else copy.delete(id);
+      return { ...current, checked: copy };
+    });
+  }
+
+  async function toggleCheck(id: string) {
     if (!editable) return;
     const next = !checked.has(id);
-    setChecked((current) => {
-      const copy = new Set(current);
-      if (next) copy.add(id);
-      else copy.delete(id);
-      return copy;
-    });
-    void persist(
+    unsaved.current.checks.add(id);
+    setChecked(id, next);
+    await persist(
       () => saveStepCheck(stepId, id, next),
-      () =>
-        setChecked((current) => {
-          const copy = new Set(current);
-          if (next) copy.delete(id);
-          else copy.add(id);
-          return copy;
-        }),
+      () => setChecked(id, !next),
     );
+    unsaved.current.checks.delete(id);
   }
 
   async function commitInput(input: StepInput, raw: string) {
@@ -175,10 +239,23 @@ export default function StepWorkspace({
       delete copy[input.id];
       return copy;
     });
-    if (!editable) return;
+    if (!editable || (parsed.value ?? "") === (answers[input.id] ?? "")) {
+      unsaved.current.inputs.delete(input.id);
+      return;
+    }
     const ok = await persist(() => saveStepInput(stepId, input.id, raw));
+    unsaved.current.inputs.delete(input.id);
     if (!ok) return;
-    setAnswers((a) => ({ ...a, [input.id]: parsed.value ?? "" }));
+    setLocal((current) => ({
+      ...current,
+      answers: { ...current.answers, [input.id]: parsed.value ?? "" },
+    }));
+  }
+
+  async function commitNotes() {
+    if (!editable || !unsaved.current.notes) return;
+    const ok = await persist(() => saveStepNotes(stepId, notes));
+    if (ok) unsaved.current.notes = false;
   }
 
   const missing = missingForCompletion({
@@ -229,8 +306,8 @@ export default function StepWorkspace({
     <div className="mt-6 flex flex-col gap-6">
       <HoldBanner
         hold={hold}
-        holderName={holderName}
-        holderExpiresAt={holderExpiresAt}
+        holderName={holder.name}
+        holderExpiresAt={holder.expiresAt}
         onRetry={() => {
           setHold({ status: "acquiring" });
           void acquire();
@@ -292,11 +369,13 @@ export default function StepWorkspace({
           </h2>
           {inputs.map((input) => (
             <InputField
-              key={input.id}
+              // Re-mount with the saved value whenever it changes elsewhere.
+              key={`${input.id}|${answers[input.id] ?? ""}`}
               input={input}
               value={answers[input.id] ?? ""}
               error={inputErrors[input.id]}
               disabled={!editable}
+              onEdit={() => unsaved.current.inputs.add(input.id)}
               onCommit={(raw) => void commitInput(input, raw)}
             />
           ))}
@@ -315,12 +394,12 @@ export default function StepWorkspace({
           value={notes}
           maxLength={2000}
           disabled={!editable}
-          onChange={(e) => setNotes(e.target.value)}
-          onBlur={() => {
-            if (editable && notes.trim() !== initialNotes.trim()) {
-              void persist(() => saveStepNotes(stepId, notes));
-            }
+          onChange={(e) => {
+            unsaved.current.notes = true;
+            const value = e.target.value;
+            setLocal((current) => ({ ...current, notes: value }));
           }}
+          onBlur={() => void commitNotes()}
           className={`${fieldClass(false)} py-3`}
           placeholder="Anything the owner or your team should know"
         />
@@ -337,7 +416,7 @@ export default function StepWorkspace({
           role="checkbox"
           aria-checked={confirmed}
           disabled={!editable}
-          onClick={() => setConfirmed((c) => !c)}
+          onClick={() => setLocal((current) => ({ ...current, confirmed: !current.confirmed }))}
           className={`flex min-h-16 w-full items-start gap-4 rounded-2xl border px-4 py-4 text-left transition disabled:opacity-60 ${
             confirmed ? "border-gold-500/60 bg-gold-900/40" : "border-charcoal-700 bg-charcoal-900"
           }`}
@@ -488,12 +567,14 @@ function InputField({
   value,
   error,
   disabled,
+  onEdit,
   onCommit,
 }: {
   input: StepInput;
   value: string;
   error?: string;
   disabled: boolean;
+  onEdit: () => void;
   onCommit: (raw: string) => void;
 }) {
   const [draft, setDraft] = useState(value);
@@ -546,8 +627,11 @@ function InputField({
           inputMode={input.wholeNumber ? "numeric" : "decimal"}
           value={draft}
           disabled={disabled}
-          onChange={(e) => setDraft(e.target.value)}
-          onBlur={() => draft.trim() !== value && onCommit(draft)}
+          onChange={(e) => {
+            onEdit();
+            setDraft(e.target.value);
+          }}
+          onBlur={() => onCommit(draft)}
           aria-invalid={error ? true : undefined}
           className={fieldClass(Boolean(error))}
         />
@@ -558,8 +642,11 @@ function InputField({
           value={draft}
           maxLength={2000}
           disabled={disabled}
-          onChange={(e) => setDraft(e.target.value)}
-          onBlur={() => draft.trim() !== value && onCommit(draft)}
+          onChange={(e) => {
+            onEdit();
+            setDraft(e.target.value);
+          }}
+          onBlur={() => onCommit(draft)}
           aria-invalid={error ? true : undefined}
           className={`${fieldClass(Boolean(error))} py-3`}
         />

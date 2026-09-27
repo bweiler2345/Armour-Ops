@@ -2,6 +2,7 @@ import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/database.types";
 import { isUuid } from "@/lib/jobs/errors";
+import type { LiveStep } from "./sync";
 import type { StepInput } from "./validation";
 
 // Reads a job's step work with the signed-in user's own session, so Row
@@ -53,6 +54,51 @@ function answerText(row: Database["public"]["Tables"]["step_input_responses"]["R
   return row.value_text ?? "";
 }
 
+type Supabase = NonNullable<Awaited<ReturnType<typeof createClient>>>;
+
+// The saved answers on a step's current attempt.
+async function loadAnswers(supabase: Supabase, attemptId: string | null) {
+  if (!attemptId) return { ok: true as const, checked: [], answers: {}, answeredBy: {}, notes: "" };
+  const [checks, answers, attempt] = await Promise.all([
+    supabase.from("step_check_responses").select("*").eq("attempt_id", attemptId),
+    supabase.from("step_input_responses").select("*").eq("attempt_id", attemptId),
+    supabase.from("step_attempts").select("employee_notes").eq("id", attemptId).maybeSingle(),
+  ]);
+  if (checks.error || answers.error || attempt.error) return { ok: false as const };
+  return {
+    ok: true as const,
+    checked: (checks.data ?? []).filter((c) => c.checked).map((c) => c.job_block_item_id),
+    answers: Object.fromEntries((answers.data ?? []).map((a) => [a.job_step_input_id, answerText(a)])) as Record<string, string>,
+    answeredBy: Object.fromEntries((answers.data ?? []).map((a) => [a.job_step_input_id, a.updated_by])) as Record<string, string>,
+    notes: attempt.data?.employee_notes ?? "",
+  };
+}
+
+// The latest saved state of one step: its state, edit hold, and answers.
+// Open step screens call this to stay current.
+export async function getStepLive(stepId: string): Promise<LiveStep | null> {
+  if (!isUuid(stepId)) return null;
+  const supabase = await createClient();
+  if (!supabase) return null;
+  const { data: status, error } = await supabase
+    .from("job_step_status")
+    .select("*")
+    .eq("job_step_id", stepId)
+    .maybeSingle();
+  if (error || !status) return null;
+  const saved = await loadAnswers(supabase, status.attempt_id);
+  if (!saved.ok) return null;
+  return {
+    state: status.state,
+    holdHeldBy: status.hold_held_by,
+    holdHeldByName: status.hold_held_by_name,
+    holdExpiresAt: status.hold_expires_at,
+    checked: saved.checked,
+    answers: saved.answers,
+    notes: saved.notes,
+  };
+}
+
 export async function getStepDetail(
   jobId: string,
   stepId: string,
@@ -93,15 +139,8 @@ export async function getStepDetail(
   const index = ordered.findIndex((s) => s.id === stepId);
   const inStage = ordered.filter((s) => s.job_stage_id === step.job_stage_id);
 
-  const attemptId = statuses.data.attempt_id;
-  const [checks, answers, attempt] = attemptId
-    ? await Promise.all([
-        supabase.from("step_check_responses").select("*").eq("attempt_id", attemptId),
-        supabase.from("step_input_responses").select("*").eq("attempt_id", attemptId),
-        supabase.from("step_attempts").select("employee_notes").eq("id", attemptId).maybeSingle(),
-      ])
-    : [{ data: [], error: null }, { data: [], error: null }, { data: null, error: null }];
-  if (checks.error || answers.error || attempt.error) return { status: "error" };
+  const saved = await loadAnswers(supabase, statuses.data.attempt_id);
+  if (!saved.ok) return { status: "error" };
 
   const blockIds = new Set((blocks.data ?? []).map((b) => b.id));
   return {
@@ -150,10 +189,10 @@ export async function getStepDetail(
         allowMultiple: p.allow_multiple,
       })),
       status: statuses.data,
-      checked: (checks.data ?? []).filter((c) => c.checked).map((c) => c.job_block_item_id),
-      answers: Object.fromEntries((answers.data ?? []).map((a) => [a.job_step_input_id, answerText(a)])),
-      answeredBy: Object.fromEntries((answers.data ?? []).map((a) => [a.job_step_input_id, a.updated_by])),
-      notes: attempt.data?.employee_notes ?? "",
+      checked: saved.checked,
+      answers: saved.answers,
+      answeredBy: saved.answeredBy,
+      notes: saved.notes,
       teamIds: (team.data ?? []).map((t) => t.employee_id),
       nextStepId: index >= 0 ? (ordered[index + 1]?.id ?? null) : null,
       previousStepId: index > 0 ? ordered[index - 1].id : null,

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import AutoRefresh from "@/components/AutoRefresh";
 import { AlertIcon, CameraIcon, CheckIcon, ChecklistIcon, LockIcon } from "@/components/Icons";
 import StepStateBadge from "@/components/StepStateBadge";
 import { requireUser } from "@/lib/dal";
@@ -144,6 +145,9 @@ export default async function StepPage({ params }: PageProps<"/jobs/[jobId]/step
       ) : (
         step.kind === "standard" && <ReadOnlyWork detail={detail} checks={checks} />
       )}
+
+      {/* Read-only viewers see teammates' saves without refreshing. */}
+      {!canWork && status.state !== "completed" && <AutoRefresh everyMs={8_000} />}
 
       <nav className="mt-8 grid grid-cols-2 gap-3" aria-label="Steps">
         {detail.previousStepId ? (
