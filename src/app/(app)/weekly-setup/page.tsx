@@ -5,13 +5,16 @@ import {
   TrailerIcon,
 } from "@/components/Icons";
 import PageHeading, { SectionHeading } from "@/components/PageHeading";
+import { requireUser } from "@/lib/dal";
 import { formatDate, trailers } from "@/lib/mock-data";
 
 export const metadata: Metadata = {
   title: "Weekly Setup · Armour Ops",
 };
 
-export default function WeeklySetupPage() {
+export default async function WeeklySetupPage() {
+  await requireUser();
+
   return (
     <>
       <PageHeading

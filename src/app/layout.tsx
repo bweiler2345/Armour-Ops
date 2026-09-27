@@ -1,7 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import AppHeader from "@/components/AppHeader";
-import BottomNav from "@/components/BottomNav";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -37,13 +35,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full">
-        <div className="mx-auto flex min-h-dvh w-full max-w-xl flex-col md:border-x md:border-charcoal-800">
-          <AppHeader />
-          <main className="flex-1 px-4 pt-5 pb-36 sm:px-6">{children}</main>
-          <BottomNav />
-        </div>
-      </body>
+      <body className="min-h-full">{children}</body>
     </html>
   );
 }

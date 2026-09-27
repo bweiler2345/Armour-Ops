@@ -1,18 +1,23 @@
 import type { Metadata } from "next";
 import JobCard from "@/components/JobCard";
 import PageHeading, { SectionHeading } from "@/components/PageHeading";
-import { activeJob, availableJobs, employee } from "@/lib/mock-data";
+import { requireUser } from "@/lib/dal";
+import { activeJob, availableJobs } from "@/lib/mock-data";
 
 export const metadata: Metadata = {
   title: "Jobs · Armour Ops",
 };
 
-export default function JobsPage() {
-  const firstName = employee.name.split(" ")[0];
+export default async function JobsPage() {
+  const user = await requireUser();
+  const firstName = user.fullName.trim().split(/\s+/)[0];
 
   return (
     <>
-      <PageHeading eyebrow={`Welcome back, ${firstName}`} title="Jobs" />
+      <PageHeading
+        eyebrow={firstName ? `Welcome back, ${firstName}` : "Welcome back"}
+        title="Jobs"
+      />
 
       <section aria-labelledby="active-job" className="mb-8">
         <SectionHeading id="active-job" title="My Active Job" />

@@ -1,24 +1,30 @@
 # Armour Ops
 
-Armour Ops is an internal, mobile-first web app for Armour Floors employees. It is designed primarily for use on iPhones in the field, with large touch-friendly controls that work while wearing work gloves, and it remains usable on desktop browsers.
+Armour Ops is an internal, mobile-first web app for Armour Floors employees and management. It is designed primarily for use on iPhones in the field, with large touch-friendly controls that work while wearing work gloves, and it remains usable on desktop browsers.
 
 The app is organized into three areas, reachable from the bottom navigation bar:
 
-- **Jobs**: the employee's active job and a list of available jobs to open or claim.
+- **Jobs**: the employee's jobs and jobs available to claim.
 - **Weekly Setup**: will hold the weekly trailer inventory checklist.
-- **Account**: the signed-in employee's name and role, plus sign-out.
+- **Account**: the signed-in user's name and role, plus sign-out.
+
+Owners also have an owner-only area at `/owner`, reachable from the Account screen.
+
+The approved product behavior is in [`docs/PRODUCT_SPEC.md`](docs/PRODUCT_SPEC.md), and the build plan is in [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md).
 
 ## Tech stack
 
-- [Next.js](https://nextjs.org) (App Router) with TypeScript
+- [Next.js](https://nextjs.org) 16 (App Router) with TypeScript
 - Tailwind CSS
-- ESLint
+- Supabase (Free plan) for sign-in and the database
+- ESLint and Vitest
 - npm
 
 ## Requirements
 
 - Node.js 20.9 or newer (developed on Node 24)
 - npm
+- A Supabase project to sign in (see below). Without one, the app runs but every page redirects to the sign-in screen, which shows "Sign-in isn't connected yet."
 
 ## Install dependencies
 
@@ -28,58 +34,76 @@ From the project folder:
 npm install
 ```
 
+## Connect Supabase
+
+Follow [`docs/SUPABASE_SETUP.md`](docs/SUPABASE_SETUP.md) once. In short:
+
+1. Create a Supabase Free project and run the SQL in `supabase/migrations/` in the SQL Editor.
+2. Turn off public sign-up.
+3. Copy `.env.example` to `.env.local` and fill in the project URL and publishable key.
+4. Create the owner account in the dashboard and set its role to `owner`.
+
+`.env.local` is ignored by Git. Never commit real keys, names, or email addresses.
+
 ## Start the development server
 
 ```bash
 npm run dev
 ```
 
-Then open [http://localhost:3000](http://localhost:3000) in your browser. The root address redirects to the Jobs screen.
+Then open [http://localhost:3000](http://localhost:3000) in your browser. Signed-out visitors are sent to the sign-in screen. After signing in, owners land on the Owner Dashboard and employees land on Jobs.
 
 To preview on an iPhone connected to the same Wi-Fi network, open `http://<your-computer's-local-IP>:3000` in Safari. You may need to allow Node.js through Windows Firewall.
 
 ## Other commands
 
-| Command         | What it does                                  |
-| --------------- | --------------------------------------------- |
-| `npm run lint`  | Checks the code with ESLint                   |
-| `npm run build` | Creates an optimized production build         |
-| `npm run start` | Serves the production build (after `build`)   |
+| Command             | What it does                                            |
+| ------------------- | ------------------------------------------------------- |
+| `npm run lint`      | Checks the code with ESLint                             |
+| `npm run typecheck` | Generates route types and checks TypeScript             |
+| `npm test`          | Runs the unit tests                                     |
+| `npm run build`     | Creates an optimized production build                   |
+| `npm run start`     | Serves the production build (after `build`)             |
 
 ## Project structure
 
 ```
 src/
+  proxy.ts                Refreshes the session and redirects signed-out visitors
   app/
-    layout.tsx          App shell: header, content area, bottom navigation
-    page.tsx            Redirects / to /jobs
-    jobs/               Jobs screen
-    weekly-setup/       Weekly Setup screen
-    account/            Account screen
-    globals.css         Color palette and global styles
-  components/           Shared UI (header, bottom nav, job card, icons)
-  lib/mock-data.ts      Temporary sample data used by every screen
+    layout.tsx            Document shell (fonts, metadata)
+    sign-in/              Sign-in screen
+    auth/deactivated/     Signs out deactivated accounts
+    (app)/                Signed-in screens with header and bottom navigation
+      page.tsx            Sends each user to their home screen
+      jobs/               Jobs screen
+      weekly-setup/       Weekly Setup screen
+      account/            Account screen and sign-out
+      owner/              Owner-only area (placeholder)
+    globals.css           Color palette and global styles
+  components/             Shared UI (header, bottom nav, job card, icons)
+  lib/
+    dal.ts                requireUser() and requireOwner(): the auth check every page and action uses
+    auth/                 Sign-in action, validation, roles, safe redirects (with unit tests)
+    supabase/             Supabase clients for the server and proxy
+    database.types.ts     Database types (hand-written until the Supabase CLI is set up)
+    mock-data.ts          Temporary sample jobs and trailers
+supabase/
+  migrations/             Database schema and security rules
+docs/                     Product spec, implementation plan, Supabase setup
 ```
 
 ## Current status
 
-**Phase 1: visual shell only.**
+**Phase 1: sign-in and route protection.**
 
 What exists:
 
-- Dark charcoal, white, and muted metallic-gold visual design
-- Bottom navigation with Jobs, Weekly Setup, and Account
-- Jobs screen with "My Active Job" and "Available Jobs" sections, using job cards that show client name, address, square footage, flake color, scheduled date, status, and progress
-- Weekly Setup placeholder screen with two sample trailer cards
-- Account screen with employee name, role, and a sign-out button
+- Email and password sign-in with show/hide password, loading state, and clear error messages. No public sign-up.
+- `owner` and `employee` roles stored in the database, with Row Level Security.
+- Every page requires sign-in. Signed-out visitors are redirected to the sign-in screen and returned to the page they wanted afterwards.
+- Owner-only pages are blocked for employees. Deactivated accounts are signed out.
+- A real Account screen and working Sign Out.
+- The Jobs and Weekly Setup screens still use fictional sample data from `src/lib/mock-data.ts`. They are not real employees or customers.
 
-What is intentionally **not** built yet:
-
-- Authentication (the Sign Out, Open Job, and Claim Job buttons are visual only)
-- Supabase or any database
-- Photo or video uploads
-- Deployment
-- The job workflow and job steps
-- The trailer inventory checklist
-
-All names, addresses, and job details are fictional sample data from `src/lib/mock-data.ts`. They are not real employees or customers.
+Not built yet: the Team screen and invitations, password recovery, the job workflow, photo and video uploads, Weekly Setup checklists, notifications, and deployment. See the implementation plan for the order.

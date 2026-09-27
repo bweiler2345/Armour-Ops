@@ -111,13 +111,6 @@ export const trailers: Trailer[] = [
   },
 ];
 
-export const employee = {
-  name: "Jordan Reyes",
-  role: "Lead Installer",
-  employeeId: "EMP-0142",
-  crew: "Crew A",
-};
-
 export function formatDate(iso: string) {
   return new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-US", {
     weekday: "short",
