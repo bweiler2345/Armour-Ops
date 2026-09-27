@@ -166,3 +166,22 @@ You need the owner account and at least **three active employee accounts** (crea
 7. **Remove a member.** Remove Employee B. History keeps the removal.
 8. **Deactivated employee.** On the Team screen, deactivate a test employee who is on a job. Their name stays on the job team marked **Deactivated**, and they can no longer sign in. Reactivate them afterwards.
 9. **Read only.** As an employee who is not on a job, open it: you see the team but can't change anything. Visiting `/owner/jobs` sends you back to Jobs.
+
+## 12. Phase 5: Step screens (without media)
+
+Run this file in **SQL Editor** (new query, paste the whole file, select **Run**). The Phase 4 file must already have been run.
+
+1. `supabase/migrations/20260927050000_step_work.sql` adds step attempts, Final check and entry answers, edit holds, the step rules, and step progress. It should finish with "Success. No rows returned."
+
+What to expect: in the approved workflow, the first step (Grind Floor) needs a video, and uploading arrives in Phase 6. So on a live job you can work through Grind Floor's Final check, but you cannot complete it yet, and the later steps stay locked. Completing no-proof steps (such as Clean Edges and Corners and Collect Excess Flake) is covered by the automated database tests.
+
+You need the owner and two active test employees (A and B), and a fictional job that A has claimed and B has joined (see step 11).
+
+1. **Workflow map.** As A, open the job. The Workflow section shows each stage with a progress bar, Grind Floor as the current step, later steps locked, and both installation milestones marked **Owner only**. A **Continue: Grind Floor** button is near the top.
+2. **Edit hold.** Select **Continue**. The step shows "You're editing this step", the goal, the numbered instructions, the Final check, the required video, and the confirmation statement.
+3. **Autosave.** Tick two Final check items. "Saved" appears. Go back to the job: the status is now **Initial Prep in Progress**, and History (as the owner) shows the step started and the status change.
+4. **One editor at a time.** With A's step screen still open, open the same step as B. B sees who is editing and until about when, and cannot tick anything. Close A's screen (or wait about two minutes); B selects **Try again** and can now edit, with A's ticks still there.
+5. **Owner clears a hold.** While B has the step open, open the step as the owner and select **Clear Edit Hold**. History shows the clear. B's next tick shows that their editing time ran out, with an **Edit this step** button.
+6. **Media blocks completion.** Tick every Final check item and the confirmation. The button reads **Needs Proof to Complete** and stays disabled, and the list explains that uploading arrives in the next update.
+7. **Locked steps and reference lists.** From the job's Workflow section, open **Set Up for Base-Coat Installation** (locked). It is read only; its mixing-station and inside-work-area lists appear as **Reference** lists with no checkboxes, and its Final check shows as read only.
+8. **Read only.** As an employee not on the job, open Grind Floor: you see A's or B's progress but cannot change anything. As the owner, you can view every step but not tick anything.

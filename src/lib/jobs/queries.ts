@@ -109,6 +109,7 @@ export type JobDetail = {
   card: JobCardData;
   stages: {
     id: string;
+    key: string;
     name: string;
     kind: Database["public"]["Tables"]["job_stages"]["Row"]["kind"];
     ownerActionLabel: string | null;
@@ -142,6 +143,7 @@ export async function getJobDetail(
       card: toJobCard(job.data, progress.data ?? undefined, team.data ?? []),
       stages: (stages.data ?? []).map((stage) => ({
         id: stage.id,
+        key: stage.key,
         name: stage.name,
         kind: stage.kind,
         ownerActionLabel: stage.owner_action_label,

@@ -1,0 +1,176 @@
+import Link from "next/link";
+import { CheckIcon, ChevronRightIcon, KeyIcon, LockIcon } from "@/components/Icons";
+import { SectionHeading } from "@/components/PageHeading";
+import { formatDateTime } from "@/lib/format";
+import type { JobDetail } from "@/lib/jobs/queries";
+import { milestoneState } from "@/lib/jobs/status";
+import type { WorkflowStepStatus } from "@/lib/steps/queries";
+
+// The job's workflow from its own snapshot: every stage in order, with a
+// progress bar, each step's state, and the owner's installation milestones.
+export default function WorkflowMap({
+  detail,
+  statuses,
+}: {
+  detail: JobDetail;
+  statuses: Map<string, WorkflowStepStatus> | null;
+}) {
+  const { job } = detail;
+
+  return (
+    <section aria-labelledby="job-workflow" className="mt-8">
+      <SectionHeading id="job-workflow" title="Workflow" />
+      <p className="-mt-1 mb-4 text-sm text-charcoal-400">
+        Workflow version {job.workflow_version}, copied when this job was created.
+      </p>
+      {statuses === null && (
+        <p className="mb-4 text-[15px] text-red-200">Step progress couldn’t be loaded. Refresh to try again.</p>
+      )}
+
+      <ol className="flex flex-col gap-4">
+        {detail.stages.map((stage, index) => {
+          if (stage.kind === "owner_milestone") {
+            const state = milestoneState(job.status, stage.key);
+            return (
+              <li
+                key={stage.id}
+                className={`rounded-3xl border p-5 ${
+                  state === "waiting"
+                    ? "border-gold-500/60 bg-gold-900/40"
+                    : state === "installed"
+                      ? "border-emerald-400/30 bg-charcoal-900"
+                      : "border-charcoal-800 bg-charcoal-900/60"
+                }`}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-lg font-semibold text-white">
+                    {index + 1}. {stage.name}
+                  </p>
+                  <span className="inline-flex shrink-0 items-center gap-1 text-sm font-semibold text-gold-300">
+                    <KeyIcon className="h-4 w-4" /> Owner only
+                  </span>
+                </div>
+                <p className="mt-1 text-[15px] text-charcoal-300">
+                  {state === "installed"
+                    ? "Installed."
+                    : state === "waiting"
+                      ? `Waiting for the owner to select “${stage.ownerActionLabel}”.`
+                      : "Done by the owner after the preparation stage before it."}
+                </p>
+              </li>
+            );
+          }
+
+          const steps = stage.steps.filter(
+            (step) =>
+              step.kind === "standard" ||
+              (step.appliesWhen === "caulking_required" && job.caulking_required) ||
+              (step.appliesWhen === "baseboard_required" && job.baseboard_required),
+          );
+          const done = steps.filter((s) => statuses?.get(s.id)?.state === "completed").length;
+          const percent = steps.length ? Math.round((done / steps.length) * 100) : 0;
+
+          return (
+            <li key={stage.id} className="overflow-hidden rounded-3xl border border-charcoal-800 bg-charcoal-900">
+              <div className="p-5 pb-3">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-lg font-semibold text-white">
+                    {index + 1}. {stage.name}
+                  </p>
+                  <span className="text-sm font-semibold text-gold-300 tabular-nums">
+                    {done} of {steps.length}
+                  </span>
+                </div>
+                <div className="mt-2 h-2 overflow-hidden rounded-full bg-charcoal-700">
+                  <div className="gold-gradient h-full rounded-full" style={{ width: `${percent}%` }} />
+                </div>
+              </div>
+
+              {steps.length === 0 ? (
+                <p className="px-5 pb-5 text-[15px] text-charcoal-400">No completion items apply to this job.</p>
+              ) : (
+                <ul className="divide-y divide-charcoal-800 border-t border-charcoal-800">
+                  {steps.map((step, i) => (
+                    <StepRow
+                      key={step.id}
+                      href={`/jobs/${job.id}/steps/${step.id}`}
+                      number={i + 1}
+                      title={step.title}
+                      completionItem={step.kind === "completion_item"}
+                      status={statuses?.get(step.id)}
+                    />
+                  ))}
+                </ul>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+    </section>
+  );
+}
+
+function StepRow({
+  href,
+  number,
+  title,
+  completionItem,
+  status,
+}: {
+  href: string;
+  number: number;
+  title: string;
+  completionItem: boolean;
+  status: WorkflowStepStatus | undefined;
+}) {
+  const state = status?.state ?? "locked";
+  const current = state === "available" || state === "in_progress";
+
+  const marker =
+    state === "completed" ? (
+      <span className="gold-gradient flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-charcoal-950">
+        <CheckIcon className="h-5 w-5" />
+      </span>
+    ) : current ? (
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-gold-400 text-sm font-bold text-gold-300">
+        {number}
+      </span>
+    ) : (
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-charcoal-800 text-charcoal-500">
+        <LockIcon className="h-4 w-4" />
+      </span>
+    );
+
+  const sub =
+    state === "completed"
+      ? `Done by ${status?.completedByName || "a team member"}${status?.completedAt ? ` · ${formatDateTime(status.completedAt)}` : ""}`
+      : state === "in_progress"
+        ? status?.holdByName
+          ? `In progress · ${status.holdByName} is editing`
+          : "In progress"
+        : state === "available"
+          ? "Ready to start"
+          : completionItem
+            ? "Opens after the top coat is installed"
+            : "Locked";
+
+  return (
+    <li>
+      <Link
+        href={href}
+        className={`flex min-h-16 items-center gap-3 px-5 py-3 transition active:bg-charcoal-800 ${
+          current ? "bg-gold-900/30" : ""
+        }`}
+      >
+        {marker}
+        <span className="min-w-0 flex-1">
+          <span className={`block text-[16px] font-semibold ${state === "locked" ? "text-charcoal-400" : "text-white"}`}>
+            {title}
+          </span>
+          <span className={`block text-sm ${current ? "text-gold-300" : "text-charcoal-400"}`}>{sub}</span>
+        </span>
+        <ChevronRightIcon className="h-5 w-5 shrink-0 text-charcoal-500" />
+      </Link>
+    </li>
+  );
+}

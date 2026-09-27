@@ -1,6 +1,5 @@
-import { CalendarIcon, KeyIcon, MapPinIcon, RulerIcon, SwatchIcon } from "@/components/Icons";
+import { CalendarIcon, MapPinIcon, RulerIcon, SwatchIcon } from "@/components/Icons";
 import JobStatusBadge from "@/components/JobStatusBadge";
-import { SectionHeading } from "@/components/PageHeading";
 import { formatDate, formatDateTime } from "@/lib/format";
 import type { JobDetail } from "@/lib/jobs/queries";
 
@@ -54,51 +53,6 @@ export function JobSummary({ detail }: { detail: JobDetail }) {
           </p>
         </div>
       )}
-    </section>
-  );
-}
-
-export function JobWorkflowOutline({ detail }: { detail: JobDetail }) {
-  const { job } = detail;
-  return (
-    <section aria-labelledby="job-workflow" className="mt-8">
-      <SectionHeading id="job-workflow" title="Workflow" />
-      <p className="-mt-1 mb-4 text-sm text-charcoal-400">
-        Workflow version {job.workflow_version}, copied when this job was created. Later workflow
-        changes don’t affect this job.
-      </p>
-      <ol className="flex flex-col gap-3">
-        {detail.stages.map((stage, index) => {
-          const steps = stage.steps.filter(
-            (step) =>
-              step.kind === "standard" ||
-              (step.appliesWhen === "caulking_required" && job.caulking_required) ||
-              (step.appliesWhen === "baseboard_required" && job.baseboard_required),
-          );
-          return (
-            <li key={stage.id} className="rounded-3xl border border-charcoal-800 bg-charcoal-900 p-5">
-              <p className="text-lg font-semibold text-white">
-                {index + 1}. {stage.name}
-              </p>
-              {stage.kind === "owner_milestone" ? (
-                <p className="mt-1 flex items-center gap-2 text-[15px] text-gold-300">
-                  <KeyIcon className="h-5 w-5" /> Owner only · {stage.ownerActionLabel}
-                </p>
-              ) : steps.length === 0 ? (
-                <p className="mt-1 text-[15px] text-charcoal-400">
-                  No completion items apply to this job.
-                </p>
-              ) : (
-                <ol className="mt-2 flex list-decimal flex-col gap-1 pl-5 text-[15px] text-charcoal-300">
-                  {steps.map((step) => (
-                    <li key={step.id}>{step.title}</li>
-                  ))}
-                </ol>
-              )}
-            </li>
-          );
-        })}
-      </ol>
     </section>
   );
 }

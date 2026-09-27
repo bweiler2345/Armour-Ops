@@ -25,3 +25,12 @@ export function formatDateTime(value: string | Date) {
     timeZone: APP_TIME_ZONE,
   });
 }
+
+// Short clock time, for "editing until about 2:45 PM".
+export function formatTime(value: string | Date) {
+  return new Date(value).toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: APP_TIME_ZONE,
+  });
+}

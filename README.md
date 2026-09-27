@@ -95,7 +95,8 @@ src/
     workflow/             Approved workflow data, seed generator, spec parser, loader (with tests)
     supabase/             Supabase clients for the server, proxy, and server-only admin tasks
     database.types.ts     Database types (hand-written until the Supabase CLI is set up)
-    jobs/                 Job validation, statuses, Jobs screen sections, queries (with tests)
+    jobs/                 Job validation, statuses, Jobs screen sections, teams, queries (with tests)
+    steps/                Step queries and entry validation (with tests)
     mock-data.ts          Temporary sample trailers for Weekly Setup
   test/                   Test-only helpers (runs migrations in an in-process Postgres)
 supabase/
@@ -143,4 +144,10 @@ What exists:
 - The owner adds and removes team members, changes the lead, and turns joining on or off. A lead with teammates can only be removed by naming a new lead.
 - Team history is kept: assignments are ended, never deleted, and every change records who made it and when.
 
-Not built yet: role changes on the Team screen, the job workflow steps, photo and video uploads, Weekly Setup checklists, notifications, and deployment. See the implementation plan for the order.
+**Phase 5: step screens without media — built; waiting for the owner to run the Phase 5 database update** (see `docs/SUPABASE_SETUP.md`, step 12).
+
+- Job pages show a workflow map from the job's own snapshot, with step states and owner-only milestones.
+- Team members work steps one at a time with an expiring edit hold: Final check, required entries, notes, and the confirmation, all saved as they go. Completed steps record who completed them and when, and never change.
+- Steps that need pictures or videos show their requirement but can't be completed until uploads arrive in Phase 6.
+
+Not built yet: role changes on the Team screen, photo and video uploads, Weekly Setup checklists, notifications, and deployment. See the implementation plan for the order.

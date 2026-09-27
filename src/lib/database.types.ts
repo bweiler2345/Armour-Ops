@@ -1,4 +1,4 @@
-// Hand-written to match supabase/migrations (Phases 1 to 4). Replace with
+// Hand-written to match supabase/migrations (Phases 1 to 5). Replace with
 // the output of `supabase gen types typescript` once the Supabase CLI is set up.
 
 type AppRole = "owner" | "employee";
@@ -26,7 +26,12 @@ type JobActivityType =
   | "employee_added"
   | "employee_removed"
   | "lead_changed"
-  | "join_setting_changed";
+  | "join_setting_changed"
+  | "step_started"
+  | "step_completed"
+  | "status_changed"
+  | "step_hold_cleared";
+type BlockKind = "ordered_list" | "reference_list" | "checklist";
 type AssignmentRole = "lead" | "member";
 type AssignmentMethod = "claimed" | "joined" | "added_by_owner" | "lead_change";
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
@@ -302,6 +307,121 @@ export type Database = {
         Update: never;
         Relationships: [];
       };
+      job_step_blocks: {
+        Row: {
+          id: string;
+          job_id: string;
+          job_step_id: string;
+          source_block_id: string | null;
+          position: number;
+          heading: string;
+          kind: BlockKind;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+      job_step_block_items: {
+        Row: {
+          id: string;
+          job_id: string;
+          job_block_id: string;
+          block_kind: BlockKind;
+          source_item_id: string | null;
+          position: number;
+          text: string;
+          required: boolean;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+      job_step_inputs: {
+        Row: {
+          id: string;
+          job_id: string;
+          job_step_id: string;
+          source_input_id: string | null;
+          position: number;
+          key: string;
+          label: string;
+          input_type: "text" | "number" | "single_select";
+          required: boolean;
+          unit: string | null;
+          choices: string[] | null;
+          whole_number: boolean;
+          minimum: number | null;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+      job_step_proof_requirements: {
+        Row: {
+          id: string;
+          job_id: string;
+          job_step_id: string;
+          source_requirement_id: string | null;
+          position: number;
+          label: string;
+          media_type: "picture" | "video";
+          min_count: number;
+          allow_multiple: boolean;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+      step_attempts: {
+        Row: {
+          id: string;
+          job_id: string;
+          job_step_id: string;
+          attempt_number: number;
+          status: "draft" | "completed" | "superseded";
+          started_by: string;
+          started_at: string;
+          employee_notes: string;
+          notes_updated_by: string | null;
+          notes_updated_at: string | null;
+          completed_by: string | null;
+          completed_at: string | null;
+          confirmation_text_shown: string | null;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+      step_check_responses: {
+        Row: {
+          attempt_id: string;
+          job_step_id: string;
+          job_block_item_id: string;
+          item_text_shown: string;
+          checked: boolean;
+          updated_by: string;
+          updated_at: string;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+      step_input_responses: {
+        Row: {
+          attempt_id: string;
+          job_step_id: string;
+          job_step_input_id: string;
+          label_shown: string;
+          value_text: string | null;
+          value_number: number | null;
+          value_choice: string | null;
+          updated_by: string;
+          updated_at: string;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
       job_activity: {
         Row: {
           id: number;
@@ -317,6 +437,24 @@ export type Database = {
       };
     };
     Views: {
+      job_step_status: {
+        Row: {
+          job_id: string;
+          job_step_id: string;
+          state: "completed" | "in_progress" | "available" | "locked";
+          attempt_id: string | null;
+          attempt_status: "draft" | "completed" | "superseded" | null;
+          started_by: string | null;
+          started_at: string | null;
+          completed_by: string | null;
+          completed_by_name: string | null;
+          completed_at: string | null;
+          hold_held_by: string | null;
+          hold_held_by_name: string | null;
+          hold_expires_at: string | null;
+        };
+        Relationships: [];
+      };
       job_team: {
         Row: {
           job_id: string;
@@ -386,6 +524,19 @@ export type Database = {
       };
       make_job_available: { Args: { p_job: string }; Returns: undefined };
       claim_job: { Args: { p_job: string }; Returns: undefined };
+      acquire_step_edit: { Args: { p_step: string }; Returns: string };
+      release_step_edit: { Args: { p_step: string }; Returns: undefined };
+      clear_step_edit: { Args: { p_step: string }; Returns: undefined };
+      save_step_check: {
+        Args: { p_step: string; p_item: string; p_checked: boolean };
+        Returns: undefined;
+      };
+      save_step_input: {
+        Args: { p_step: string; p_input: string; p_value: string };
+        Returns: undefined;
+      };
+      save_step_notes: { Args: { p_step: string; p_notes: string }; Returns: undefined };
+      complete_step: { Args: { p_step: string; p_confirmed: boolean }; Returns: undefined };
       join_job: { Args: { p_job: string }; Returns: undefined };
       add_team_member: { Args: { p_job: string; p_employee: string }; Returns: undefined };
       change_lead: { Args: { p_job: string; p_new_lead: string }; Returns: undefined };

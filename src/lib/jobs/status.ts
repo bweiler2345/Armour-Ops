@@ -61,3 +61,22 @@ export function isActiveStatus(status: JobStatus) {
 export function isJobStatus(value: unknown): value is JobStatus {
   return typeof value === "string" && (JOB_STATUSES as readonly string[]).includes(value);
 }
+
+// An owner installation milestone's state, from the job's status. Mirrors
+// public.milestone_installed in the database.
+export function milestoneState(
+  status: JobStatus,
+  stageKey: string,
+): "installed" | "waiting" | "upcoming" {
+  const order = JOB_STATUSES.indexOf(status);
+  const at = (s: JobStatus) => JOB_STATUSES.indexOf(s);
+  if (stageKey === "base_coat_installation") {
+    if (order >= at("base_coat_installed")) return "installed";
+    if (status === "waiting_for_base_coat_installation") return "waiting";
+  }
+  if (stageKey === "top_coat_installation") {
+    if (order >= at("top_coat_installed")) return "installed";
+    if (status === "waiting_for_top_coat_installation") return "waiting";
+  }
+  return "upcoming";
+}

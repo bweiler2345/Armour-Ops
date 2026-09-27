@@ -2,10 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AlertIcon } from "@/components/Icons";
-import { JobSummary, JobWorkflowOutline } from "@/components/JobDetails";
+import { JobSummary } from "@/components/JobDetails";
 import { SectionHeading } from "@/components/PageHeading";
 import { requireOwner } from "@/lib/dal";
 import { formatDateTime } from "@/lib/format";
+import { JOB_STATUS_LABELS, type JobStatus } from "@/lib/jobs/status";
 import {
   getJobActivity,
   getJobDetail,
@@ -14,6 +15,8 @@ import {
 } from "@/lib/jobs/queries";
 import JobStatusControls from "../JobStatusControls";
 import OwnerTeamPanel from "../OwnerTeamPanel";
+import WorkflowMap from "@/components/WorkflowMap";
+import { getJobStepStatuses } from "@/lib/steps/queries";
 
 export const metadata: Metadata = {
   title: "Manage Job · Armour Ops",
@@ -22,10 +25,11 @@ export const metadata: Metadata = {
 export default async function OwnerJobPage({ params }: PageProps<"/owner/jobs/[jobId]">) {
   await requireOwner();
   const { jobId } = await params;
-  const [result, activity, employees] = await Promise.all([
+  const [result, activity, employees, statuses] = await Promise.all([
     getJobDetail(jobId),
     getJobActivity(jobId),
     listActiveEmployees(),
+    getJobStepStatuses(jobId),
   ]);
   if (result.status === "missing") notFound();
 
@@ -83,7 +87,7 @@ export default async function OwnerJobPage({ params }: PageProps<"/owner/jobs/[j
         employees={employees}
       />
 
-      <JobWorkflowOutline detail={detail} />
+      <WorkflowMap detail={detail} statuses={statuses} />
 
       <section aria-labelledby="job-history" className="mt-8">
         <SectionHeading id="job-history" title="History" />
@@ -166,6 +170,18 @@ function HistoryEntry({ entry }: { entry: JobActivityEntry }) {
       title = details.from_employee_id
         ? `${who} changed the lead from ${person("from_employee_id")} to ${person("to_employee_id")}`
         : `${who} made ${person("to_employee_id")} the lead`;
+      break;
+    case "step_started":
+      title = `${who} started “${String(details.title ?? "a step")}”`;
+      break;
+    case "step_completed":
+      title = `${who} completed “${String(details.title ?? "a step")}”`;
+      break;
+    case "status_changed":
+      title = `Status changed to ${JOB_STATUS_LABELS[details.to as JobStatus] ?? String(details.to)}`;
+      break;
+    case "step_hold_cleared":
+      title = `${who} cleared ${person("employee_id")}’s edit hold on “${String(details.title ?? "a step")}”`;
       break;
     case "join_setting_changed":
       title = `${who} turned Allow Employees to Join ${details.to ? "on" : "off"}`;
