@@ -149,7 +149,7 @@ What exists:
 - Job pages show a workflow map from the job's own snapshot, with step states and owner-only milestones.
 - Team members work steps one at a time with an expiring edit lease: Final check, required entries, notes, and the confirmation, all saved as they go. Completed steps record who completed them and when, and never change.
 
-**Phase 6: photo and video proof — built; waiting for Cloudflare R2 setup and live verification.** Setup steps are in `docs/SUPABASE_SETUP.md`, step 13.
+**Phase 6: photo and video proof — complete and verified against the live Supabase project and a private Cloudflare R2 bucket.** Video and picture uploads from an iPhone (including HEIC), progress, cancel, lost-connection retry and resume, server verification, completion gating, private viewing, and access refusals were tested successfully. Testing on a phone over the local network needs `DEV_LAN_HOSTS` in `.env.local`. Setup steps are in `docs/SUPABASE_SETUP.md`, step 13.
 
 - Phones upload proof straight to a private Cloudflare R2 bucket using short-lived links; the R2 keys stay on the server and files never pass through the app's server.
 - Pictures are compressed on the phone to at most 5 MB. Videos (MOV or MP4, up to 3 minutes and 300 MB) upload in parts and continue after a lost connection or a reload.
