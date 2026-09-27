@@ -131,7 +131,7 @@ What exists:
 - Published versions cannot be changed, so jobs will keep the version they started with.
 - Owners can review the stored workflow at `/owner/workflow`.
 
-**Phase 3: jobs — built; waiting for the owner to run the Phase 3 database update** (see `docs/SUPABASE_SETUP.md`, step 10).
+**Phase 3: jobs — complete and verified against the live Supabase project.** Job creation with defaults and validation, the workflow snapshot, editing with history, Make Available, Return to Scheduled, and employee read-only access were all tested successfully. Setup steps are in `docs/SUPABASE_SETUP.md`, step 10.
 
 - Owners create jobs at `/owner/jobs/new` (Caulking on, Baseboard off, and Allow Employees to Join on by default). Each new job starts as Scheduled and gets its own copy of the active workflow version, so later workflow changes never affect it.
 - Owners edit Scheduled jobs, make them available, and return them to Scheduled. Every change is kept in the job's history.
