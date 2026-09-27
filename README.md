@@ -156,7 +156,7 @@ What exists:
 - A step needing proof completes only after every required file is uploaded and checked by the server. Proof on a completed step can't be removed or replaced.
 - Only the owner and the job's team can view proof, through links that expire within minutes.
 
-**Phase 7: installation milestones and Completion Work — built; waiting for live verification.** Setup steps are in `docs/SUPABASE_SETUP.md`, step 14.
+**Phase 7: installation milestones and Completion Work — complete and verified against the live Supabase project.** Both installation milestones, stale-request safety, Completion Work order and attribution, the Owner Dashboard groups, Mark Job Complete, the five-year retention date, and read-only complete jobs were tested successfully. Setup steps are in `docs/SUPABASE_SETUP.md`, step 14.
 
 - Only the owner can mark Base Coat Installed and Top Coat Installed, each only from its waiting status and with a confirmation. The owner and time are recorded, and the next stage opens.
 - After Top Coat Installed, team members mark Caulking Complete and then Baseboard Complete, each only when the job option is on; items for options that are off show as Not applicable.
