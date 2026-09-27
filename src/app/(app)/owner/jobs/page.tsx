@@ -6,7 +6,7 @@ import JobCard from "@/components/JobCard";
 import PageHeading, { SectionHeading } from "@/components/PageHeading";
 import { requireOwner } from "@/lib/dal";
 import { listJobCards } from "@/lib/jobs/queries";
-import { isActiveStatus } from "@/lib/jobs/status";
+import { ownerGroupFor } from "@/lib/jobs/sections";
 
 export const metadata: Metadata = {
   title: "Jobs · Owner · Armour Ops",
@@ -20,28 +20,34 @@ export default async function OwnerJobsPage() {
     result.status === "ok"
       ? [
           {
+            key: "needs_owner",
+            title: "Needs You",
+            empty: "No jobs are waiting for an installation or for Mark Job Complete.",
+            jobs: result.jobs.filter((j) => ownerGroupFor(j) === "needs_owner"),
+          },
+          {
             key: "scheduled",
             title: "Scheduled",
             empty: "No Scheduled jobs. Create a job to get started.",
-            jobs: result.jobs.filter((j) => j.status === "scheduled"),
+            jobs: result.jobs.filter((j) => ownerGroupFor(j) === "scheduled"),
           },
           {
             key: "available",
             title: "Available to Claim",
             empty: "No jobs are available to claim. Make a Scheduled job available when it’s ready.",
-            jobs: result.jobs.filter((j) => j.status === "available_to_claim"),
+            jobs: result.jobs.filter((j) => ownerGroupFor(j) === "available"),
           },
           {
             key: "active",
             title: "In Progress",
             empty: "No jobs are in progress.",
-            jobs: result.jobs.filter((j) => isActiveStatus(j.status)),
+            jobs: result.jobs.filter((j) => ownerGroupFor(j) === "in_progress"),
           },
           {
             key: "complete",
             title: "Complete",
             empty: "No completed jobs yet.",
-            jobs: result.jobs.filter((j) => j.status === "complete"),
+            jobs: result.jobs.filter((j) => ownerGroupFor(j) === "complete"),
           },
         ]
       : [];

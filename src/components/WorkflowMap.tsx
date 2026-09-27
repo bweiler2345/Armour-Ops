@@ -31,6 +31,7 @@ export default function WorkflowMap({
         {detail.stages.map((stage, index) => {
           if (stage.kind === "owner_milestone") {
             const state = milestoneState(job.status, stage.key);
+            const record = detail.milestones[stage.key];
             return (
               <li
                 key={stage.id}
@@ -52,7 +53,9 @@ export default function WorkflowMap({
                 </div>
                 <p className="mt-1 text-[15px] text-charcoal-300">
                   {state === "installed"
-                    ? "Installed."
+                    ? record
+                      ? `Installed by ${record.installedByName || "the owner"} · ${formatDateTime(record.installedAt)}`
+                      : "Installed."
                     : state === "waiting"
                       ? `Waiting for the owner to select “${stage.ownerActionLabel}”.`
                       : "Done by the owner after the preparation stage before it."}
@@ -61,14 +64,17 @@ export default function WorkflowMap({
             );
           }
 
-          const steps = stage.steps.filter(
+          // Completion Work items for options that are off are shown as Not
+          // applicable and don't count toward progress.
+          const steps = stage.steps;
+          const applicable = steps.filter(
             (step) =>
               step.kind === "standard" ||
               (step.appliesWhen === "caulking_required" && job.caulking_required) ||
               (step.appliesWhen === "baseboard_required" && job.baseboard_required),
           );
-          const done = steps.filter((s) => statuses?.get(s.id)?.state === "completed").length;
-          const percent = steps.length ? Math.round((done / steps.length) * 100) : 0;
+          const done = applicable.filter((s) => statuses?.get(s.id)?.state === "completed").length;
+          const percent = applicable.length ? Math.round((done / applicable.length) * 100) : 100;
 
           return (
             <li key={stage.id} className="overflow-hidden rounded-3xl border border-charcoal-800 bg-charcoal-900">
@@ -78,7 +84,7 @@ export default function WorkflowMap({
                     {index + 1}. {stage.name}
                   </p>
                   <span className="text-sm font-semibold text-gold-300 tabular-nums">
-                    {done} of {steps.length}
+                    {done} of {applicable.length}
                   </span>
                 </div>
                 <div className="mt-2 h-2 overflow-hidden rounded-full bg-charcoal-700">
@@ -86,9 +92,12 @@ export default function WorkflowMap({
                 </div>
               </div>
 
-              {steps.length === 0 ? (
-                <p className="px-5 pb-5 text-[15px] text-charcoal-400">No completion items apply to this job.</p>
-              ) : (
+              {applicable.length === 0 && (
+                <p className="px-5 pb-3 text-[15px] text-charcoal-300">
+                  No Completion Work applies to this job. It’s ready for the owner once the top coat is installed.
+                </p>
+              )}
+              {steps.length > 0 && (
                 <ul className="divide-y divide-charcoal-800 border-t border-charcoal-800">
                   {steps.map((step, i) => (
                     <StepRow
@@ -97,6 +106,8 @@ export default function WorkflowMap({
                       number={i + 1}
                       title={step.title}
                       completionItem={step.kind === "completion_item"}
+                      optionLabel={step.appliesWhen === "baseboard_required" ? "Baseboard" : "Caulking"}
+                      topCoatInstalled={milestoneState(job.status, "top_coat_installation") === "installed"}
                       status={statuses?.get(step.id)}
                     />
                   ))}
@@ -115,12 +126,16 @@ function StepRow({
   number,
   title,
   completionItem,
+  optionLabel,
+  topCoatInstalled,
   status,
 }: {
   href: string;
   number: number;
   title: string;
   completionItem: boolean;
+  optionLabel: string;
+  topCoatInstalled: boolean;
   status: WorkflowStepStatus | undefined;
 }) {
   const state = status?.state ?? "locked";
@@ -130,6 +145,10 @@ function StepRow({
     state === "completed" ? (
       <span className="gold-gradient flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-charcoal-950">
         <CheckIcon className="h-5 w-5" />
+      </span>
+    ) : state === "not_applicable" ? (
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-charcoal-800 text-lg font-bold text-charcoal-500">
+        –
       </span>
     ) : current ? (
       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-gold-400 text-sm font-bold text-gold-300">
@@ -149,10 +168,16 @@ function StepRow({
           ? `In progress · ${status.holdByName} is editing`
           : "In progress"
         : state === "available"
-          ? "Ready to start"
-          : completionItem
-            ? "Opens after the top coat is installed"
-            : "Locked";
+          ? completionItem
+            ? "Ready to mark complete"
+            : "Ready to start"
+          : state === "not_applicable"
+            ? `Not applicable · ${optionLabel} is off for this job`
+            : completionItem
+              ? topCoatInstalled
+                ? "Opens after the item above is complete"
+                : "Opens after the top coat is installed"
+              : "Locked";
 
   return (
     <li>
@@ -164,7 +189,7 @@ function StepRow({
       >
         {marker}
         <span className="min-w-0 flex-1">
-          <span className={`block text-[16px] font-semibold ${state === "locked" ? "text-charcoal-400" : "text-white"}`}>
+          <span className={`block text-[16px] font-semibold ${state === "locked" || state === "not_applicable" ? "text-charcoal-400" : "text-white"}`}>
             {title}
           </span>
           <span className={`block text-sm ${current ? "text-gold-300" : "text-charcoal-400"}`}>{sub}</span>

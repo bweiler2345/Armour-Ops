@@ -43,6 +43,9 @@ export type JobCardData = {
   progress: { completed: number; total: number; percent: number };
   lastActivityAt: string;
   completedAt: string | null;
+  // Both milestones and all applicable Completion Work are done; waiting for
+  // the owner's Mark Job Complete.
+  readyForOwnerCompletion: boolean;
 };
 
 export function toJobCard(
@@ -75,6 +78,7 @@ export function toJobCard(
     },
     lastActivityAt: job.last_activity_at,
     completedAt: job.completed_at,
+    readyForOwnerCompletion: progress?.ready_for_owner_completion ?? false,
   };
 }
 
@@ -115,6 +119,8 @@ export type JobDetail = {
     ownerActionLabel: string | null;
     steps: { id: string; title: string; kind: "standard" | "completion_item"; appliesWhen: string | null }[];
   }[];
+  // Installed milestones by stage key, with who marked them and when.
+  milestones: Record<string, { installedByName: string | null; installedAt: string }>;
 };
 
 export async function getJobDetail(
@@ -124,14 +130,15 @@ export async function getJobDetail(
   const supabase = await createClient();
   if (!supabase) return { status: "error" };
 
-  const [job, progress, stages, steps, team] = await Promise.all([
+  const [job, progress, stages, steps, team, milestones] = await Promise.all([
     supabase.from("jobs").select("*").eq("id", jobId).maybeSingle(),
     supabase.from("job_progress").select("*").eq("job_id", jobId).maybeSingle(),
     supabase.from("job_stages").select("*").eq("job_id", jobId).order("position"),
     supabase.from("job_steps").select("*").eq("job_id", jobId).order("position"),
     supabase.from("job_team").select("*").eq("job_id", jobId),
+    supabase.from("job_milestone_status").select("*").eq("job_id", jobId),
   ]);
-  if (job.error || progress.error || stages.error || steps.error || team.error) {
+  if (job.error || progress.error || stages.error || steps.error || team.error || milestones.error) {
     return { status: "error" };
   }
   if (!job.data) return { status: "missing" };
@@ -156,6 +163,12 @@ export async function getJobDetail(
             appliesWhen: step.applies_when,
           })),
       })),
+      milestones: Object.fromEntries(
+        (milestones.data ?? []).map((m) => [
+          m.milestone_key,
+          { installedByName: m.installed_by_name, installedAt: m.installed_at },
+        ]),
+      ),
     },
   };
 }

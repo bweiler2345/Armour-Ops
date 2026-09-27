@@ -54,8 +54,8 @@ The existing visual components will be kept and fed real data rather than rewrit
 | Database, auth, security rules, app data | Supabase Free | Postgres, Supabase Auth (email and password), Row Level Security. Also stores all media metadata and authorization relationships. |
 | Employee pictures and videos | Cloudflare R2 (private bucket) | Supabase Storage is **not** used for job media. |
 | Database backups | Weekly export to the private R2 bucket | Newest 12 weekly backups kept, older ones deleted automatically. See [Database backups](#database-backups). |
-| Scheduled jobs | Cloudflare Workers Cron Triggers | Media retention deletion, stale upload cleanup, and email retry. |
-| Owner notification email | A free-tier transactional email provider | Selected in Phase 7 and used only for the two approved owner notification emails. Not used for accounts: version one has no invitation or password-reset emails. |
+| Scheduled jobs | Cloudflare Workers Cron Triggers | Media retention deletion and stale upload cleanup. |
+| Owner notification email | None in version one | Approved owner decision: owner notifications are in-app only (status, badges, and the Owner Dashboard). Employees text the owner when a job is ready for an installation. Email remains a possible future feature. |
 
 The goal is to stay free or extremely inexpensive at the current company size.
 
@@ -80,7 +80,6 @@ Planned additions, installed only in the phase that needs them:
 | `@playwright/test` | Later, when a dedicated test Supabase project exists | End-to-end tests with iPhone viewport emulation |
 | `@opennextjs/cloudflare`, `wrangler` and `esbuild` (dev dependencies) | Hosting check (added) | Build and preview the app on Cloudflare Workers |
 | `aws4fetch` | 6 | Server-side R2 requests and presigned URLs (R2 is S3-compatible). Chosen over the much larger AWS SDK to stay within the Workers Free size limit. |
-| Email provider SDK (chosen in Phase 7) | 7 | Owner notification email only |
 
 Supabase Storage and browser-side upload libraries that need storage credentials are not used.
 
@@ -91,7 +90,6 @@ Next.js 16 conventions that affect this plan (from `node_modules/next/dist/docs/
 - **Do not rely on layouts for auth checks.** Layouts do not re-render on navigation and do not stop nested segments from rendering. Each page and action checks for itself.
 - **Server Actions are public POST endpoints** and must re-check auth and role inside every action.
 - **Server Action request bodies are capped at 1 MB by default.** Pictures and videos therefore upload directly from the browser to R2 using presigned URLs, never through a Server Action.
-- **`after()`** runs work after the response is sent. It is used to send notification email without slowing down step completion.
 - **Dynamic route `params` are Promises** and are typed with the generated `PageProps<'/jobs/[jobId]'>` helpers, matching the existing `LayoutProps<'/'>` usage.
 - The experimental `authInterrupts` (`forbidden()` / `unauthorized()`) will not be used. Standard `redirect()` and `notFound()` are sufficient.
 
@@ -102,7 +100,6 @@ Next.js 16 conventions that affect this plan (from `node_modules/next/dist/docs/
 | Supabase URL and publishable key | `.env.local`, later Cloudflare Workers environment variables | Safe for the browser by design, protected by RLS |
 | Supabase secret key (`SUPABASE_SECRET_KEY`, the `sb_secret_...` key) | `.env.local` during development, a Cloudflare Workers secret once deployed. Read only by `src/lib/supabase/admin.ts` (`server-only`) | Never prefixed `NEXT_PUBLIC_`, never in browser code, logs, error messages, or the repository |
 | R2 account ID, access key ID, secret access key, bucket name | Server environment only, read only by `src/lib/r2.ts` (`server-only`) | Never in browser code or the repository |
-| Email provider API key (Phase 7 owner notifications only) | Server environment only | Never in the repository |
 
 OpenNext copies every variable from the `.env*` files into the Worker bundle. `npm run cf:build` therefore runs `scripts/cf-protect-secrets.mjs` afterwards. It keeps only `NEXT_PUBLIC_` variables in the bundled env module, then scans the whole `.open-next` output for the value of every server-only variable and fails the build (naming the variable, never printing the value) if one is found. Server secrets for the deployed app are stored as Cloudflare Workers secrets. Secrets for the weekly backup job are stored as encrypted GitHub Actions secrets. Local Workers preview files (`.dev.vars`) are added to `.gitignore` when hosting is set up.
 
@@ -116,7 +113,7 @@ OpenNext copies every variable from the `.env*` files into the Worker bundle. `n
 
 | Role | Stored as | Summary |
 | --- | --- | --- |
-| Owner/Admin | `profiles.role = 'owner'` | Full read and write access to all jobs, teams, steps, evidence, milestones, notifications, Weekly Setup submissions, and the Team screen. More than one owner account is supported. |
+| Owner/Admin | `profiles.role = 'owner'` | Full read and write access to all jobs, teams, steps, evidence, milestones, Weekly Setup submissions, and the Team screen. More than one owner account is supported. |
 | Employee | `profiles.role = 'employee'` | Read-only access to every job visible to employees. Full working access to jobs they are assigned to. Submits Weekly Setup checks. |
 
 ### Authentication
@@ -188,7 +185,6 @@ RLS is enabled on every table. `security definer` helper functions (with `search
 | Media metadata, and viewing media through the media route | All | For every job they can read |
 | Job activity | All | For every job they can read |
 | Workflow templates | All | None needed (jobs carry their own snapshot) |
-| Notifications | Their own | None (owner notifications only in version one) |
 | Trailers, inventory items | All | All active |
 | Weekly Setup submissions and results | All | All submitted, plus their own drafts |
 
@@ -204,7 +200,7 @@ RLS is enabled on every table. `security definer` helper functions (with `search
 
 ### Timestamps
 
-- Every event time (`claimed`, `joined`, `assigned`, `removed`, `started`, `completed`, `uploaded`, `submitted`, milestone, notification, and activity times) is set in the database with `now()` inside the RPC or by a column default. RPCs never accept these values from the browser.
+- Every event time (`claimed`, `joined`, `assigned`, `removed`, `started`, `completed`, `uploaded`, `submitted`, milestone, and activity times) is set in the database with `now()` inside the RPC or by a column default. RPCs never accept these values from the browser.
 - For future offline support, a separate informational `client_recorded_at` column may be added later. It will never replace the database timestamp.
 
 ---
@@ -230,8 +226,6 @@ All schema changes live in `supabase/migrations/*.sql`. Generated TypeScript typ
 | `attempt_status` | `draft`, `completed`, `superseded` |
 | `media_status` | `pending`, `uploaded`, `failed`, `discarded`, `deleted` |
 | `media_upload_method` | `single`, `multipart` |
-| `notification_kind` | `waiting_for_base_coat_installation`, `waiting_for_top_coat_installation` |
-| `email_status` | `pending`, `sent`, `failed` |
 | `inventory_tracking` | `count`, `status_only` |
 | `inventory_status` | `ready`, `missing`, `need_more` |
 | `activity_type` | `job_created`, `job_edited`, `made_available`, `returned_to_scheduled`, `join_setting_changed`, `claimed`, `employee_joined`, `employee_added`, `employee_removed`, `lead_changed`, `step_started`, `step_completed`, `step_reopened`, `step_skipped`, `step_added`, `step_removed`, `step_edited`, `steps_reordered`, `step_edit_cleared`, `media_uploaded`, `milestone_installed`, `completion_item_checked`, `completion_item_unchecked`, `status_changed`, `job_completed` |
@@ -337,14 +331,15 @@ Rows exist only for toggles that are on. Each change is also written to `job_act
 
 Reference images for steps use `reference_image_key` on the step rows and are uploaded by the owner through the same intent flow.
 
-#### Activity and notifications
+#### Activity and milestones
 
 **`job_activity`** (append-only audit history)
 `id bigint identity`, `job_id` FK, `actor_id`, `activity_type`, `job_step_id` (nullable), `details jsonb`, `created_at default now()`. Written only by RPCs.
 
-**`notifications`**
-`id`, `recipient_id` (an owner), `job_id` FK, `kind notification_kind`, `title`, `body`, `details jsonb` (client name, address, completed stage, employee, completion time, job link), `created_at`, `read_at`, `email_status email_status`, `email_attempts int`, `email_last_error`, `email_sent_at`.
-Rows are never deleted, which keeps the in-app notification history.
+**`job_milestones`** (append-only, Phase 7)
+`id`, `job_id` FK, `job_stage_id`, `milestone_key` (`base_coat_installation` or `top_coat_installation`), `installed_by`, `installed_at default now()`, unique per job and milestone. Written only by `mark_milestone_installed`.
+
+There is no notifications table: owner notifications are in-app status, badges, and the Owner Dashboard (approved owner decision).
 
 #### Weekly Setup
 
@@ -379,7 +374,7 @@ jobs 1─* job_stages 1─* job_steps 1─* job_step_blocks 1─* job_step_block
                              job_steps 1─* step_reopenings
 jobs 1─* job_completion_items
 jobs 1─* job_activity
-jobs 1─* notifications *─1 profiles (owner)
+jobs 1─* job_milestones *─1 profiles (owner)
 workflow_templates 1─* stage_templates 1─* step_templates 1─* (template blocks, items, inputs, proof requirements)
 trailers 1─* weekly_setup_submissions 1─* weekly_setup_item_results *─1 inventory_items
 ```
@@ -447,8 +442,7 @@ Claiming and joining are actions on `/jobs` and `/jobs/[jobId]`, not separate pa
 
 | Route | Screen |
 | --- | --- |
-| `/owner` | **Owner dashboard.** Jobs grouped by Scheduled, Available, In progress, Waiting for installation, Ready for owner review, and Completed. Unread notifications, jobs with no team assigned, and trailer shortages. |
-| `/owner/notifications` | In-app notification history, with read and unread state and email delivery status. |
+| `/owner` | **Owner dashboard.** Jobs grouped by Scheduled, Available, In progress, Waiting for installation, Ready for owner review, and Completed. Counts and links for jobs waiting for each installation and ready to mark Complete (Phase 7), jobs with no team assigned, and trailer shortages. |
 | `/owner/jobs/new` | **Owner job creation.** All job fields, the Caulking toggle (on by default), the Baseboard toggle (off by default), the Allow Employees to Join setting (on by default), and optional custom steps. New jobs are saved as Scheduled. |
 | `/owner/jobs/[jobId]` | **Owner progress monitoring and review.** Status, team, current step, progress, activity timeline, every step with completion time and person, evidence viewer, and completion items. Controls: **Make Available**, **Return to Scheduled**, **Allow Employees to Join**, add, remove, and change lead, **Mark Base Coat Installed** (only when Waiting for Base-Coat Installation), **Mark Top Coat Installed** (only when Waiting for Top-Coat Installation), and **Mark Job Complete** (only when the job is ready; see below). |
 | `/owner/jobs/[jobId]/edit` | **Owner job editing.** Job details and toggles, plus the step editor: add a custom step, remove, reorder, skip, and edit steps for this job only. |
@@ -470,7 +464,6 @@ src/
     supabase/browser.ts            browser client (realtime only)
     supabase/admin.ts              secret-key admin client, server-only, Team actions only
     r2.ts                          R2 client and presigning, server-only
-    email.ts                       email provider client for owner notifications (Phase 7), server-only
     dal.ts                         requireUser(), requireOwner()
     database.types.ts              generated
     workflow/                      pure functions: unlocking, progress, validation, status labels
@@ -551,9 +544,9 @@ Joining, adding, or removing team members does not change the status. Status cha
 
 ### How owner milestones unlock the next employee stage
 
-- When the last step of Initial Prep completes, `complete_step` sets Waiting for Base-Coat Installation, unlocks the milestone stage, and creates owner notifications (see [Owner notifications](#6-owner-notifications)).
+- When the last step of Initial Prep completes, `complete_step` sets Waiting for Base-Coat Installation, and the job appears on the Owner Dashboard (see [Owner notifications](#6-owner-notifications)).
 - Employees see a waiting screen for the milestone. It contains no installation instructions.
-- Only `mark_milestone_installed(job_id, stage_key)` (owner only) completes it. It records the owner and database time in `job_stages`, sets Base Coat Installed, and unlocks Top-Coat Prep. The top coat works the same way and unlocks Completion Work.
+- Only `mark_milestone_installed(job_id, stage_key)` (owner only) completes it. It records the owner and database time in `job_milestones`, sets Base Coat Installed, and unlocks Top-Coat Prep. The top coat works the same way and unlocks Completion Work.
 - The function refuses to run unless the job is in the matching waiting status.
 
 ### How owner reopening works
@@ -657,12 +650,10 @@ The approved limits and formats are in the spec's [Pictures and videos](./PRODUC
 - **When:** only for the two approved events.
   - Initial Prep complete, job Waiting for Base-Coat Installation.
   - Top-Coat Prep complete, job Waiting for Top-Coat Installation.
-- **Who:** every active owner account.
-- **In-app:** `complete_step` inserts a `notifications` row per owner in the same transaction as the status change, so a notification can never be lost. The owner dashboard shows unread notifications, and `/owner/notifications` keeps the full history.
-- **Email:** after the step completion commits, the Server Action uses `after()` to send each pending notification email through the provider, then records `sent` or `failed`. Failed emails are retried by a Workers Cron Trigger once deployed, and on the next owner page load before then.
-- **Email contents:** client name, address, completed stage, the employee who completed the stage's final step, the completion time (from the database, shown in the company's local time zone), and a link to the job (built from an `APP_URL` environment variable).
-- **Provider:** a free-tier transactional email provider selected in Phase 7, used only for these owner notification emails. Its credentials live only in server environment settings.
-- Text message and phone push notifications are future features.
+- **Approved owner decision:** version one notifies the owner in the app only. There are no owner emails, text messages, or push notifications, and no email provider.
+- **In-app:** the job status changes in the same transaction as the step completion, so it can't be missed. The Owner Dashboard shows a "Needs you" count and separate groups, each with its own count and direct links, for Waiting for Base-Coat Installation, Waiting for Top-Coat Installation, and Ready to Mark Complete. The dashboard and owner job pages refresh themselves while open (every 30 seconds, and when the app returns to the foreground). The owner's Jobs screen lists the same jobs first under "Needs You". Each job's history records every status change.
+- **Employees:** text the owner when a job is ready for an installation. Waiting job pages remind team members to do so.
+- Owner notification emails, text message notifications, and phone push notifications are possible future features.
 
 ### Database backups
 
@@ -822,12 +813,20 @@ Each phase ends with lint, a production build, its listed tests, and a check on 
   - **Not in this phase:** owner reference images on steps (not part of the approved Phase 6 request), the scheduled cleanup job for abandoned uploads and five-year retention (the database functions exist; scheduling comes with deployment), and the production bucket.
   - **Tests:** 24 database tests (starting, resuming, limits, wrong requirement/job/step/attempt/uploader/key, unassigned and deactivated accounts, stale and cleared leases, server verification, expired authorization, completion blocking and proof counts including multiple-picture steps, private viewing, completed-proof immutability, abandoned uploads, retention) and unit tests for signing, R2 parsing and completion planning, file limits, the upload engine (progress, parts, resume, retry, expiry, cancel), screen state, and source boundaries (no file contents in Server Actions, R2 keys only in server-only code).
 
-### Phase 7: Installation milestones, notifications, completion work, and owner completion
+### Phase 7: Installation milestones and Completion Work
 
-- **Features:** `mark_milestone_installed`. In-app notifications with history, and email notifications with the approved contents through an email provider selected in this phase. Completion items checkable by any assigned employee. The owner review view, "Ready for owner review" grouping, and owner-only `mark_job_complete`, which sets `media_delete_after`.
-- **Files or areas:** migrations, `src/lib/actions/owner.ts`, `src/lib/email.ts`, `src/app/owner/notifications`, owner job page, employee job page.
-- **Testing:** Database tests: employees cannot mark milestones or complete jobs; milestones cannot be marked from the wrong status; unassigned employees cannot check completion items. A test that each waiting status creates one notification per owner and one email containing the six approved fields. A complete run of a test job from creation to Complete covering all four caulking and baseboard combinations.
-- **Confirm before moving on:** The owner has received both email notifications on a real job and completed it from the review screen.
+- **Features:** owner-only Mark Base Coat Installed and Mark Top Coat Installed, Completion Work items checkable by any assigned employee, the owner's review and Mark Job Complete (which sets `media_delete_after`), and in-app owner visibility on the Owner Dashboard. No email (approved owner decision; see [Owner notifications](#6-owner-notifications)).
+- **Files or areas:** migration, `src/lib/actions/owner.ts`, owner dashboard, owner job page, employee job page, step screen, workflow map.
+- **Testing:** Database tests: employees cannot mark milestones or complete jobs; milestones cannot be marked from the wrong status; unassigned employees cannot check completion items; all four caulking and baseboard combinations; repeated requests add no history; complete jobs are read only.
+- **Confirm before moving on:** The owner has marked both installations and completed a test job from the review screen.
+- **Status: built; waiting for the owner's live verification.** Setup and live checks are in `docs/SUPABASE_SETUP.md`, step 14. How it was built:
+  - **Database** (`20260927080000_milestones_and_completion.sql`): `job_milestones` records each installation milestone once per job with the owner and database time, and can never be changed or deleted. `mark_milestone_installed(job, milestone)` is owner only, locks the job row, and works only from the matching waiting status: it records the milestone, writes a `milestone_installed` history entry, and moves the job to Base Coat Installed or Top Coat Installed (with the usual `status_changed` entry). Base Coat Installed unlocks the first Top-Coat Prep step through the existing step rules; Top Coat Installed unlocks Completion Work. A repeated or simultaneous request returns "already installed" and changes nothing.
+  - **Completion Work:** `job_step_state` now reports Completion Work items as `not_applicable` when the job's Caulking or Baseboard option is off, `locked` until the top coat is installed and every earlier applicable item is complete (Caulking Complete, then Baseboard Complete), and `available` after that. `complete_completion_item(step)` lets an active employee on the job team mark an available item: it records the employee and database time as a completed step attempt, writes a `step_completed` history entry, and moves Top Coat Installed to Completion Work in Progress on the first item. Items have no checklist, entries, proof, or confirmation, so they don't use edit leases; the job row lock makes a teammate's simultaneous tap return "already completed" with no duplicate. The preparation-step functions (edit leases, answers, uploads, Complete Step) refuse Completion Work items.
+  - **Owner completion:** `mark_job_complete(job)` is owner only, locks the job, and requires both milestones, every preparation step, and every applicable Completion Work item. It sets Complete, `completed_by`, `completed_at`, and `media_delete_after = completed_at + 5 years` (database time), clears any edit holds, and writes `status_changed` and `job_completed` history. If no Completion Work applies, the job is ready right after Top Coat Installation. Nothing is deleted or scheduled for deletion.
+  - **Read only after completion:** triggers refuse any change to a complete job's row and any new or changed step attempt, edit hold, upload, or team assignment on it, and allow completion fields only on a complete job.
+  - **Progress:** `job_progress` counts applicable Completion Work items, names the current item, shows "Ready for owner review" when only Mark Job Complete remains, and adds `ready_for_owner_completion`. `job_milestone_status` shows who marked each milestone (names only) to active users.
+  - **Screens:** the Owner Dashboard shows counts and links for jobs waiting for each installation and ready to mark Complete; owner job pages show large Mark Base Coat Installed, Mark Top Coat Installed, and Mark Job Complete buttons only when valid, each with a confirmation; employee job pages show Waiting for owner, All work done, and Complete states; the workflow map shows who marked each milestone and when, and shows Not applicable items; the Completion Work step screen has one large button with a confirmation. Error messages for team checks are now shown as written instead of "Only an active owner can do this."
+  - **Tests:** 22 new database tests and unit tests for section moves, dashboard counts, milestone states, and installation terminology.
 
 ### Phase 8: Owner reopening and step editing
 
@@ -838,7 +837,7 @@ Each phase ends with lint, a production build, its listed tests, and a check on 
 
 ### Phase 9: Owner dashboard and live monitoring
 
-- **Features:** Dashboard groups, jobs with no team assigned, unread notifications, trailer shortage summary, and live updates using Supabase Realtime on `job_activity` (RLS applies to Realtime).
+- **Features:** Dashboard groups, jobs with no team assigned, trailer shortage summary, and live updates using Supabase Realtime on `job_activity` (RLS applies to Realtime).
 - **Files or areas:** `src/app/owner/page.tsx`, dashboard components, browser Supabase client.
 - **Testing:** Two devices: an employee completes a step and the owner dashboard updates without reloading.
 - **Confirm before moving on:** The owner is happy with what the dashboard shows at a glance.
@@ -854,7 +853,7 @@ This phase is independent of the job workflow and can move earlier if the owner 
 
 ### Phase 11: Hardening, scheduled jobs, and deployment (only when approved)
 
-- **Features:** Remove the "Preview" badge and remaining mock data. Error and loading states. Add-to-home-screen icon. Production Supabase and R2 settings. Production deployment on Cloudflare Workers Free with OpenNext. Workers Cron Triggers for daily five-year media deletion, stale upload cleanup, and email retry. The weekly database backup workflow with 12-backup retention. The Next.js production checklist.
+- **Features:** Remove the "Preview" badge and remaining mock data. Error and loading states. Add-to-home-screen icon. Production Supabase and R2 settings. Production deployment on Cloudflare Workers Free with OpenNext. Workers Cron Triggers for daily five-year media deletion and stale upload cleanup. The weekly database backup workflow with 12-backup retention. The Next.js production checklist.
 - **Testing:** A full Next.js compatibility pass on Workers (every route, Server Action, redirect, `after()`, and Realtime). Full end-to-end suite against the Workers preview. The scheduled deletion job run against test data with a shortened date. A manual backup run, a test restore into a scratch database, and a check that the 13th backup deletes the oldest. A real-device pass with every role.
 - **Confirm before moving on:** The owner approves going live.
 

@@ -9,6 +9,7 @@ import { formatDateTime, formatTime } from "@/lib/format";
 import { formatBytes, formatDuration } from "@/lib/media/files";
 import { getStepDetail, type StepBlock } from "@/lib/steps/queries";
 import ClearHoldButton from "./ClearHoldButton";
+import CompletionItemButton from "./CompletionItemButton";
 import StepWorkspace from "./StepWorkspace";
 
 export const metadata: Metadata = {
@@ -37,6 +38,7 @@ export default async function StepPage({ params }: PageProps<"/jobs/[jobId]/step
   const open = status.state === "available" || status.state === "in_progress";
   const onTeam = detail.teamIds.includes(user.id);
   const canWork = user.role === "employee" && onTeam && open && step.kind === "standard";
+  const canComplete = user.role === "employee" && onTeam && status.state === "available" && step.kind === "completion_item";
   const checks = detail.blocks
     .filter((b) => b.kind === "checklist")
     .flatMap((b) => b.items);
@@ -87,9 +89,20 @@ export default async function StepPage({ params }: PageProps<"/jobs/[jobId]/step
         {status.state === "locked" && step.kind === "standard" && (
           <Banner tone="locked">Locked. Finish the earlier steps first.</Banner>
         )}
-        {step.kind === "completion_item" && (
-          <Banner tone="locked">Completion Work opens after the top coat is installed.</Banner>
+        {step.kind === "completion_item" && status.state === "not_applicable" && (
+          <Banner tone="info">
+            Not applicable. {step.appliesWhen === "baseboard_required" ? "Baseboard" : "Caulking"} is off for this job, so
+            this item is skipped and doesn’t block completion.
+          </Banner>
         )}
+        {step.kind === "completion_item" && status.state === "locked" && (
+          <Banner tone="locked">
+            {detail.job.status === "top_coat_installed" || detail.job.status === "completion_work_in_progress"
+              ? "Finish the earlier Completion Work item first."
+              : "Completion Work opens after the owner marks the top coat installed."}
+          </Banner>
+        )}
+
         {open && !onTeam && user.role === "employee" && (
           <Banner tone="info">You’re not on this job’s team, so you can view this step but not change it.</Banner>
         )}
@@ -126,6 +139,8 @@ export default async function StepPage({ params }: PageProps<"/jobs/[jobId]/step
         .map((block) => (
           <BlockSection key={block.id} block={block} />
         ))}
+
+      {canComplete && <CompletionItemButton jobId={jobId} stepId={stepId} title={step.title} />}
 
       {canWork ? (
         <StepWorkspace

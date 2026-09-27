@@ -5,6 +5,7 @@ const LABELS: Record<StepState, { label: string; style: string }> = {
   in_progress: { label: "In progress", style: "bg-gold-400/15 text-gold-300 ring-gold-400/40" },
   available: { label: "Ready", style: "bg-sky-400/10 text-sky-200 ring-sky-400/30" },
   locked: { label: "Locked", style: "bg-white/5 text-charcoal-400 ring-white/10" },
+  not_applicable: { label: "Not applicable", style: "bg-white/5 text-charcoal-400 ring-white/10" },
 };
 
 export default function StepStateBadge({ state }: { state: StepState }) {

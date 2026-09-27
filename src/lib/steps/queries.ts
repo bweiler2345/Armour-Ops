@@ -33,6 +33,8 @@ export type StepDetail = {
     proofType: "none" | "picture" | "video";
     proofText: string | null;
     confirmationText: string | null;
+    // Completion Work items: the job option they depend on.
+    appliesWhen: "caulking_required" | "baseboard_required" | null;
     numberInStage: number;
     stepsInStage: number;
   };
@@ -200,6 +202,7 @@ export async function getStepDetail(
         proofType: step.proof_type,
         proofText: step.proof_text,
         confirmationText: step.confirmation_text,
+        appliesWhen: step.applies_when,
         numberInStage: inStage.findIndex((s) => s.id === stepId) + 1,
         stepsInStage: inStage.length,
       },

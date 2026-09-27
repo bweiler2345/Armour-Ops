@@ -98,6 +98,12 @@ describe("team error messages", () => {
     expect(jobErrorMessage({ code: "42501", message: "permission denied for table jobs" })).toBe(
       "Only an active owner can do this.",
     );
+    expect(
+      jobErrorMessage({ code: "42501", message: "Only employees on this job's team can mark Completion Work." }),
+    ).toBe("Only employees on this job's team can mark Completion Work.");
+    expect(jobErrorMessage({ code: "P0002", message: "Completion Work item not found." })).toBe(
+      "Completion Work item not found.",
+    );
     expect(jobErrorMessage({ code: "P0001", message: "Someone else claimed this job first." })).toBe(
       "Someone else claimed this job first.",
     );

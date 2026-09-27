@@ -131,6 +131,27 @@ export async function clearStepEdit(jobId: string, stepId: string): Promise<Step
   return result;
 }
 
+// Marks one Completion Work item (Caulking Complete or Baseboard Complete)
+// complete. No edit lease: the item has nothing to edit, and the database
+// locks the job so a teammate's simultaneous tap changes nothing.
+export async function completeCompletionItem(
+  jobId: string,
+  stepId: string,
+): Promise<{ ok: true; already: boolean } | { ok: false; error: string }> {
+  await requireUser();
+  if (!isUuid(jobId) || !isUuid(stepId)) return { ok: false, error: JOB_ERROR_MESSAGES.notFound };
+  const supabase = await createClient();
+  if (!supabase) return { ok: false, error: JOB_ERROR_MESSAGES.generic };
+  const { data, error } = await supabase.rpc("complete_completion_item", { p_step: stepId });
+  refresh(jobId, stepId);
+  revalidatePath("/owner");
+  if (error) {
+    console.error("[steps] complete_completion_item failed", { code: error.code });
+    return { ok: false, error: jobErrorMessage(error) };
+  }
+  return { ok: true, already: data === "already_completed" };
+}
+
 function refresh(jobId: string, stepId: string) {
   revalidatePath("/jobs");
   revalidatePath(`/jobs/${jobId}`);

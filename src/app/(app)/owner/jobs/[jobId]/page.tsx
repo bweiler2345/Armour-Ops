@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { AlertIcon } from "@/components/Icons";
+import AutoRefresh from "@/components/AutoRefresh";
+import { AlertIcon, CheckIcon, KeyIcon } from "@/components/Icons";
 import { JobSummary } from "@/components/JobDetails";
 import { SectionHeading } from "@/components/PageHeading";
 import { requireOwner } from "@/lib/dal";
@@ -14,6 +15,7 @@ import {
   type JobActivityEntry,
 } from "@/lib/jobs/queries";
 import JobStatusControls from "../JobStatusControls";
+import OwnerJobActions from "../OwnerJobActions";
 import OwnerTeamPanel from "../OwnerTeamPanel";
 import WorkflowMap from "@/components/WorkflowMap";
 import { getJobStepStatuses } from "@/lib/steps/queries";
@@ -57,6 +59,43 @@ export default async function OwnerJobPage({ params }: PageProps<"/owner/jobs/[j
       <JobSummary detail={detail} />
 
       <div className="mt-4 flex flex-col gap-3">
+        {job.status === "waiting_for_base_coat_installation" && (
+          <OwnerStep
+            title="Waiting for you: Base-Coat Installation"
+            text="Initial Prep is complete. After you install the base coat, mark it installed to open Top-Coat Prep to the team."
+          >
+            <OwnerJobActions jobId={job.id} kind="base_coat" />
+          </OwnerStep>
+        )}
+        {job.status === "waiting_for_top_coat_installation" && (
+          <OwnerStep
+            title="Waiting for you: Top-Coat Installation"
+            text="Top-Coat Prep is complete. After you install the top coat, mark it installed to open Completion Work to the team."
+          >
+            <OwnerJobActions jobId={job.id} kind="top_coat" />
+          </OwnerStep>
+        )}
+        {detail.card.readyForOwnerCompletion && job.status !== "complete" && (
+          <OwnerStep
+            title="Ready for your review"
+            text="Both installations and all applicable Completion Work are done. Review the steps, proof, and history below, then mark the job Complete."
+          >
+            <OwnerJobActions jobId={job.id} kind="complete" />
+          </OwnerStep>
+        )}
+        {job.status === "complete" && (
+          <p className="flex items-start gap-3 rounded-2xl border border-emerald-400/30 bg-emerald-400/10 p-4 text-[15px] leading-relaxed font-medium text-emerald-100">
+            <CheckIcon className="mt-0.5 h-5 w-5 shrink-0" />
+            <span>
+              Complete{job.completed_at ? ` · ${formatDateTime(job.completed_at)}` : ""}. This job is read only.
+              {job.media_delete_after && (
+                <>
+                  {" "}Its pictures and videos are kept until at least {formatDateTime(job.media_delete_after)}.
+                </>
+              )}
+            </span>
+          </p>
+        )}
         {job.status === "scheduled" && (
           <>
             <JobStatusControls jobId={job.id} change="make_available" />
@@ -88,6 +127,7 @@ export default async function OwnerJobPage({ params }: PageProps<"/owner/jobs/[j
       />
 
       <WorkflowMap detail={detail} statuses={statuses} />
+      {job.status !== "complete" && <AutoRefresh everyMs={30_000} />}
 
       <section aria-labelledby="job-history" className="mt-8">
         <SectionHeading id="job-history" title="History" />
@@ -120,6 +160,19 @@ const FIELD_LABELS: Record<string, string> = {
   baseboard_required: "Baseboard",
   allow_employees_to_join: "Allow Employees to Join",
 };
+
+function OwnerStep({ title, text, children }: { title: string; text: string; children: React.ReactNode }) {
+  return (
+    <section className="rounded-3xl border border-gold-500/60 bg-gold-900/30 p-5">
+      <h2 className="flex items-center gap-2 text-lg font-semibold text-white">
+        <KeyIcon className="h-5 w-5 shrink-0 text-gold-300" />
+        {title}
+      </h2>
+      <p className="mt-1 mb-4 text-[15px] leading-relaxed text-charcoal-300">{text}</p>
+      {children}
+    </section>
+  );
+}
 
 function describeValue(value: unknown) {
   if (value === true) return "on";
@@ -176,6 +229,18 @@ function HistoryEntry({ entry }: { entry: JobActivityEntry }) {
       break;
     case "step_completed":
       title = `${who} completed “${String(details.title ?? "a step")}”`;
+      break;
+    case "milestone_installed":
+      title = `${who} marked ${String(details.label ?? "an installation milestone")}`;
+      break;
+    case "job_completed":
+      title = `${who} marked the job Complete`;
+      break;
+    case "proof_uploaded":
+      title = `${who} uploaded proof: ${String(details.proof ?? "a file")}`;
+      break;
+    case "proof_removed":
+      title = `${who} removed proof: ${String(details.proof ?? "a file")}`;
       break;
     case "status_changed":
       title = `Status changed to ${JOB_STATUS_LABELS[details.to as JobStatus] ?? String(details.to)}`;

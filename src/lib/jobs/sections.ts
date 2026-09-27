@@ -11,6 +11,8 @@ export type SectionJob = {
   completedAt: string | null;
   // Employee ids on the job team. Always empty until job teams (Phase 4).
   teamIds: readonly string[];
+  // Everything is done except the owner's Mark Job Complete.
+  readyForOwnerCompletion?: boolean;
 };
 
 export type EmployeeSectionKey = "mine" | "other_active" | "available" | "scheduled" | "completed";
@@ -77,4 +79,43 @@ export function groupJobsForEmployee<T extends SectionJob>(
     });
     return { ...section, jobs: sorted };
   });
+}
+
+// What needs the owner right now, for the Owner Dashboard: jobs waiting for
+// each installation, and jobs ready for Mark Job Complete. Oldest first.
+export function ownerAttention<T extends SectionJob>(jobs: readonly T[]) {
+  const oldest = (list: T[]) => [...list].sort((a, b) => byDate(a.lastActivityAt, b.lastActivityAt));
+  const waitingBase = oldest(jobs.filter((j) => j.status === "waiting_for_base_coat_installation"));
+  const waitingTop = oldest(jobs.filter((j) => j.status === "waiting_for_top_coat_installation"));
+  const readyToComplete = oldest(jobs.filter((j) => j.status !== "complete" && j.readyForOwnerCompletion === true));
+  return {
+    waitingBase,
+    waitingTop,
+    readyToComplete,
+    total: waitingBase.length + waitingTop.length + readyToComplete.length,
+  };
+}
+
+export type OwnerGroupKey =
+  | "needs_owner"
+  | "scheduled"
+  | "available"
+  | "in_progress"
+  | "complete";
+
+// The owner's Jobs screen groups. Jobs waiting for an installation or ready
+// for Mark Job Complete come first, apart from the rest of the work in
+// progress.
+export function ownerGroupFor(job: SectionJob): OwnerGroupKey {
+  if (job.status === "complete") return "complete";
+  if (job.status === "scheduled") return "scheduled";
+  if (job.status === "available_to_claim") return "available";
+  if (
+    job.status === "waiting_for_base_coat_installation" ||
+    job.status === "waiting_for_top_coat_installation" ||
+    job.readyForOwnerCompletion === true
+  ) {
+    return "needs_owner";
+  }
+  return "in_progress";
 }

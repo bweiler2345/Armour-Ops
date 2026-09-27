@@ -127,7 +127,9 @@ describe("steps come from the job's snapshot", () => {
       APPROVED_WORKFLOW.stages.flatMap((stage) => stage.steps.map((s) => s.title)),
     );
     expect(status[0].state).toBe("available");
-    expect(status.slice(1).every((s) => s.state === "locked")).toBe(true);
+    // Baseboard is off by default, so its Completion Work item doesn't apply.
+    expect(status.at(-1)).toEqual({ title: "Baseboard Complete", state: "not_applicable" });
+    expect(status.slice(1, -1).every((s) => s.state === "locked")).toBe(true);
   });
 
   it("keeps every step locked until the job is claimed", async () => {

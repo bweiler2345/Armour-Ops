@@ -36,7 +36,7 @@ The owner can:
 - Mark Top Coat Installed.
 - Review a job and select Mark Job Complete.
 - Monitor live job progress.
-- Receive in-app and email notifications.
+- See jobs waiting for an installation or for Mark Job Complete on the Owner Dashboard.
 - View Weekly Setup submissions and trailer shortages.
 - Manage employee accounts on the Team screen.
 
@@ -239,23 +239,14 @@ These values are approved for version one.
 
 ## Owner notifications
 
-The owner receives an in-app notification and an email when:
+Version one notifies the owner in the app only (approved owner decision):
 
-- Initial Prep is complete and the job is Waiting for Base-Coat Installation.
-- Top-Coat Prep is complete and the job is Waiting for Top-Coat Installation.
+- The job’s status, the Owner Dashboard, and badges with counts show jobs that are Waiting for Base-Coat Installation, Waiting for Top-Coat Installation, or ready for the owner to mark Complete, with direct links. The dashboard refreshes itself while it is open.
+- These states apply when Initial Prep is complete (Waiting for Base-Coat Installation) and when Top-Coat Prep is complete (Waiting for Top-Coat Installation).
+- Employees text the owner when a job is ready for an installation.
+- Each job’s history records the step completions and status changes.
 
-The app keeps a history of in-app notifications.
-
-Each email includes:
-
-- Client name
-- Address
-- Completed stage
-- Employee
-- Completion time
-- Link to the job
-
-Text message and phone push notifications are future features.
+Owner notification emails, text message notifications, and phone push notifications are possible future features.
 
 ## Hosting and backups
 
@@ -874,6 +865,7 @@ Do not implement these until specifically requested:
   - The “Blocked / Problem Reported” job status
   - Owner notifications for problem reports
   - Owner resolution of reports
+- Owner notification emails
 - Text message notifications
 - Phone push notifications
 - Automated account invitation emails

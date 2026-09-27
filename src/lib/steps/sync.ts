@@ -7,7 +7,7 @@
 import type { StepMediaItem } from "@/lib/media/types";
 
 export type LiveStep = {
-  state: "completed" | "in_progress" | "available" | "locked";
+  state: "completed" | "in_progress" | "available" | "locked" | "not_applicable";
   holdHeldBy: string | null;
   holdHeldByName: string | null;
   holdExpiresAt: string | null;

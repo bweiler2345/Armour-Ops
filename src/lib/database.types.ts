@@ -32,7 +32,9 @@ type JobActivityType =
   | "status_changed"
   | "step_hold_cleared"
   | "proof_uploaded"
-  | "proof_removed";
+  | "proof_removed"
+  | "milestone_installed"
+  | "job_completed";
 type BlockKind = "ordered_list" | "reference_list" | "checklist";
 type AssignmentRole = "lead" | "member";
 type AssignmentMethod = "claimed" | "joined" | "added_by_owner" | "lead_change";
@@ -292,6 +294,19 @@ export type Database = {
         Update: never;
         Relationships: [];
       };
+      job_milestones: {
+        Row: {
+          id: string;
+          job_id: string;
+          job_stage_id: string;
+          milestone_key: "base_coat_installation" | "top_coat_installation";
+          installed_by: string;
+          installed_at: string;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
       job_assignments: {
         Row: {
           id: string;
@@ -478,7 +493,7 @@ export type Database = {
         Row: {
           job_id: string;
           job_step_id: string;
-          state: "completed" | "in_progress" | "available" | "locked";
+          state: "completed" | "in_progress" | "available" | "locked" | "not_applicable";
           attempt_id: string | null;
           attempt_status: "draft" | "completed" | "superseded" | null;
           started_by: string | null;
@@ -511,6 +526,18 @@ export type Database = {
           completed_units: number;
           current_stage_name: string | null;
           current_step_title: string | null;
+          ready_for_owner_completion: boolean;
+        };
+        Relationships: [];
+      };
+      job_milestone_status: {
+        Row: {
+          job_id: string;
+          job_stage_id: string;
+          milestone_key: "base_coat_installation" | "top_coat_installation";
+          installed_by: string;
+          installed_by_name: string | null;
+          installed_at: string;
         };
         Relationships: [];
       };
@@ -644,6 +671,12 @@ export type Database = {
         Returns: undefined;
       };
       join_job: { Args: { p_job: string }; Returns: undefined };
+      mark_milestone_installed: {
+        Args: { p_job: string; p_milestone: "base_coat_installation" | "top_coat_installation" };
+        Returns: "installed" | "already_installed";
+      };
+      complete_completion_item: { Args: { p_step: string }; Returns: "completed" | "already_completed" };
+      mark_job_complete: { Args: { p_job: string }; Returns: "completed" | "already_complete" };
       add_team_member: { Args: { p_job: string; p_employee: string }; Returns: undefined };
       change_lead: { Args: { p_job: string; p_new_lead: string }; Returns: undefined };
       remove_team_member: {

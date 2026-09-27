@@ -619,8 +619,16 @@ describe("abandoned uploads and retention", () => {
     expect(await server("media_due_for_retention_cleanup")).toEqual([]);
     await expect(server("mark_media_deleted", up.media_id)).rejects.toThrow(/completed step cannot be changed|isn't due/);
 
-    // Phase 7 sets this when the owner completes the job; here the date passed.
-    await db.query(`update public.jobs set media_delete_after = now() - interval '1 day' where id = $1`, [job]);
+    // Test-database fixture: the job was completed more than five years ago
+    // (mark_job_complete sets these; triggers are skipped to backdate them).
+    await db.exec("set session_replication_role = replica");
+    await db.query(
+      `update public.jobs set status = 'complete', completed_by = $2,
+         completed_at = now() - interval '5 years 1 day', media_delete_after = now() - interval '1 day'
+       where id = $1`,
+      [job, owner],
+    );
+    await db.exec("set session_replication_role = origin");
     const due = await server("media_due_for_retention_cleanup");
     expect(due).toEqual([{ media_id: up.media_id, object_key: up.object_key }]);
     await server("mark_media_deleted", up.media_id);

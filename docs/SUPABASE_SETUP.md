@@ -291,3 +291,29 @@ You need the owner, two active test employees (A and B) on a fictional job's tea
 9. **Private viewing.** As B (on the team) and as the owner, open the completed step: the video and pictures open. As C (not on the team), open the same step: the proof shows "Only the job's team and the owner can see proof files." Copy a proof link (`/media/…`) from A's screen and open it signed in as C: "Not found." Signed out, it goes to the sign-in page. A signed link copied from the browser's address bar after opening a video stops working after about 15 minutes (pictures after 5).
 10. **Edit lease.** While A is uploading, have the owner select **Clear Edit Hold**. A's upload stops being accepted and A sees that the owner ended the session; after **Edit this step**, **Retry** finishes it.
 11. **Bucket stays private.** In the R2 dashboard, open the bucket's objects: files are under `jobs/<job id>/steps/<step id>/<attempt id>/…` with random names. The bucket has no public URL.
+
+## 14. Phase 7: Installation milestones and Completion Work
+
+Owner notifications are in-app only (approved owner decision): no email provider or new settings are needed. Employees text the owner when a job is ready for an installation.
+
+### 14.1 Run the Phase 7 database update
+
+The Phase 6 file (step 13.1) must already have been run. In **SQL Editor**, run `supabase/migrations/20260927080000_milestones_and_completion.sql` (new query, paste the whole file, **Run**). It should finish with "Success. No rows returned." Restart `npm run dev` afterwards.
+
+### 14.2 Try it
+
+You need the owner, two active test employees (A and B) on a fictional job's team, and one employee (C) who is not on the team. Use the phone for the employee steps. Create the test job with **Caulking on** and **Baseboard on** so both Completion Work items appear. Use test pictures and videos only.
+
+1. **Before the milestone.** While Initial Prep is still in progress, open the job as the owner: there is no **Mark Base Coat Installed** button, and the Owner Dashboard's **Needs you** count doesn't include it.
+2. **Waiting for Base-Coat Installation.** As A, complete every Initial Prep step (with its required proof). The job page shows **Waiting for owner: Base-Coat Installation** and a reminder to text the owner. Top-Coat Prep steps stay locked. Within about 30 seconds, without reloading, the owner's dashboard shows the job under **Waiting for Base-Coat Installation** with a count, and the owner's Jobs screen lists it under **Needs You**.
+3. **Employees can't mark it.** As A, B, and C, no installation button appears anywhere.
+4. **Mark Base Coat Installed.** Sign in as the owner on both the computer and a second device (or a second browser), and open the job page on both. On the computer, tap **Mark Base Coat Installed**. A confirmation appears; **Cancel** changes nothing. Tap it again and confirm. The job becomes **Base Coat Installed**, the workflow map shows "Installed by (owner) · (time)", History shows the milestone and the status change, and the dashboard count goes down.
+5. **Stale request.** Right away, on the second device, tap **Mark Base Coat Installed** and confirm. It says Base Coat Installed was already marked and nothing changed; History still has one milestone entry. (If the button has already disappeared, that screen refreshed itself first, which is also correct.)
+6. **Top-Coat Prep opens.** As A, the job page offers **Continue** to the first Top-Coat Prep step. Starting it moves the job to Top-Coat Prep in Progress.
+7. **Waiting for Top-Coat Installation.** As A, complete every Top-Coat Prep step. The job appears under **Waiting for Top-Coat Installation** on the dashboard. As the owner, mark **Top Coat Installed** (with confirmation). The job becomes **Top Coat Installed** and Completion Work opens.
+8. **Completion Work order.** As B, open the job: **Continue: Caulking Complete**. **Baseboard Complete** shows "Opens after the item above is complete". Tap **Caulking Complete**, confirm, and the job becomes **Completion Work in Progress**, with B's name and time on the item. Then complete **Baseboard Complete** as A.
+9. **Not on the team.** As C, open a Completion Work item on the job: there is no button, only a note that you can view the step but not change it.
+10. **Ready for review.** The job page tells the team that all work is done and it's waiting for the owner. The owner's dashboard shows it under **Ready to Mark Complete**.
+11. **Mark Job Complete.** As the owner, review the steps, proof, and History, then tap **Mark Job Complete** and confirm. The job becomes **Complete**, the page says it is read only and shows the date its pictures and videos are kept until (five years later), and it moves to **Complete** on the Jobs screens (owner and employees).
+12. **Read only.** As A, open any step of the complete job: nothing can be changed or uploaded. As the owner, there are no milestone, team-change, or completion buttons. Completed proof still opens for the owner and the team.
+13. **Options off (optional).** On a job created with **Baseboard off**, Baseboard Complete shows **Not applicable** and the job is ready for the owner once Caulking Complete is done. With both off, the job is ready for Mark Job Complete right after Top Coat Installed. These combinations are also covered by the automated database tests.

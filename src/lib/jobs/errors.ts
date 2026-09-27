@@ -15,14 +15,16 @@ export function jobErrorMessage(error: { code?: string; message?: string } | nul
   if (!error) return JOB_ERROR_MESSAGES.generic;
   switch (error.code) {
     case "P0002":
-      return error.message?.startsWith("Job not found")
-        ? JOB_ERROR_MESSAGES.notFound
+      if (error.message?.startsWith("Job not found")) return JOB_ERROR_MESSAGES.notFound;
+      // Our own "... not found." messages (a step, a proof file) are shown as is.
+      return error.message && /^[A-Z][\w ’']{0,60} (not|wasn['’]t) found\.$/.test(error.message)
+        ? error.message
         : JOB_ERROR_MESSAGES.noWorkflow;
     case "42501":
-      // Our role checks say who may act; Postgres permission errors do not.
-      return error.message?.startsWith("Only an active")
-        ? error.message
-        : JOB_ERROR_MESSAGES.notOwner;
+      // Our role and team checks ("Only an active owner…", "Only employees on
+      // this job's team…") say who may act; Postgres permission errors
+      // ("permission denied…") do not.
+      return error.message?.startsWith("Only ") ? error.message : JOB_ERROR_MESSAGES.notOwner;
     case "P0001":
       return error.message || JOB_ERROR_MESSAGES.generic;
     case "23502":
