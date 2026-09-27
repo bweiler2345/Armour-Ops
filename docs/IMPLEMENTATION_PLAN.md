@@ -707,6 +707,7 @@ Each phase ends with lint, a production build, its listed tests, and a check on 
 - **Files or areas:** `package.json`, `supabase/migrations`, `src/proxy.ts`, `src/lib/supabase/*`, `src/lib/dal.ts`, `src/lib/auth/*`, `src/app/sign-in`, `src/app/account`, `src/app/owner`, layouts, `.env.example`, README.
 - **Testing:** Unit tests for sign-in validation, error messages, and safe redirect handling. Lint, type check, and production build. Once a Supabase project exists: manual checks that signed-out users are redirected, an employee cannot open `/owner` or run owner actions, deactivated users are signed out, and sign-out works on an iPhone.
 - **Confirm before moving on:** Nothing loads while signed out. Employees cannot reach owner pages. No real personal information or credentials have been committed.
+- **Status: complete and verified (2026-09-27).** The owner tested against the real Supabase Free project: the owner account signed in, opened `/owner`, and the Account screen showed the owner's name and Owner role; a wrong password showed an error; an employee test account signed in, and visiting `/owner` redirected it to `/jobs`. Credentials stay in the untracked `.env.local` and the Supabase dashboard only.
 
 ### Phase 1B: Team screen and invitations
 

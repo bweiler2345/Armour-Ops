@@ -95,7 +95,7 @@ docs/                     Product spec, implementation plan, Supabase setup
 
 ## Current status
 
-**Phase 1: sign-in and route protection.**
+**Phase 1: sign-in and route protection — complete and verified against the live Supabase project.** Owner and employee test accounts signed in successfully, a wrong password was rejected, and an employee visiting `/owner` was redirected to `/jobs`.
 
 What exists:
 
