@@ -31,7 +31,10 @@ The owner can:
 - View completed steps and timestamps.
 - View submitted pictures, videos, notes, and verification responses.
 - Add, remove, reorder, skip, reopen, or edit steps.
-- Add custom job steps.
+- Add custom job steps, one-time or from the Custom Step Library.
+- Manage the owner-only Custom Step Library.
+- Add optional instructional/reference pictures to standard and custom steps.
+- Join an active job as an Owner/Working Member, and leave its working team.
 - Mark Base Coat Installed.
 - Mark Top Coat Installed.
 - Review a job and select Mark Job Complete.
@@ -99,17 +102,33 @@ Defaults:
 - Allow Employees to Join is on by default. The owner can turn it off for an individual job.
 - New jobs begin as Scheduled.
 
-The owner can add a custom step and determine:
+The owner can add a custom step for work such as Sand Stairs or Grind Down Lip, and determine:
 
 - Step name
 - Stage
 - Position in the workflow
 - Instructions
-- Optional reference picture
+- Optional reference pictures
 - Optional checklist
 - Required proof type: none, picture, or video
 - Optional structured inputs (see “Structured inputs” below)
 - Final confirmation text
+
+A custom step can be one-time (for this job only) or saved to the Custom Step Library (see “Custom Step Library”).
+
+## Custom Step Library
+
+- The owner keeps reusable custom steps in an owner-only Custom Step Library. Employees cannot see or change it.
+- A library step can be imported into future jobs without recreating it.
+- Importing creates a job-specific snapshot. Later edits to the library item never change a job that already imported it.
+- The owner can edit a library item for future imports and archive it. Archived items cannot be imported into new jobs. Versions that were used and the copies on historical jobs are never destroyed.
+- A one-time custom step can also be saved to the library.
+
+## Reference pictures
+
+- Standard and custom steps can have optional instructional/reference pictures supplied by the owner. The owner can add them later through the app.
+- Reference pictures are visual guidance only. They never count as employee proof.
+- Existing jobs are snapshot-safe: changes to the standard workflow’s or the library’s reference pictures do not silently change jobs that already exist.
 
 ## Making jobs available
 
@@ -134,6 +153,14 @@ The owner can add a custom step and determine:
 - Claiming, joining, being added, and being removed are each recorded with the employee and timestamp.
 - Employees cannot silently transfer a job to another employee.
 - Employees can be assigned to more than one active job at the same time. There is no one-active-job limit.
+
+Owner/Working Member:
+
+- The owner can join an active job as an Owner/Working Member.
+- The employee lead remains the crew lead. Joining does not make the owner the lead or replace the lead.
+- A joined owner can complete employee tasks, checks, structured inputs, and proof uploads, and every action is recorded with the owner’s name.
+- An owner who has not joined can view employee work but not change it, and keeps the normal owner milestone and management powers.
+- The owner can leave the working team (when not in the middle of editing a step) without affecting owner access, the employee lead, or any recorded work.
 
 ## Job statuses
 
@@ -180,7 +207,7 @@ Each workflow step can contain:
 
 - Step title
 - Goal
-- Visual reference image
+- Visual reference pictures (see “Reference pictures”)
 - Ordered instructions
 - Reference lists
 - Final checklist
@@ -197,8 +224,8 @@ Rules:
 - A step automatically records who completed it and when.
 - Employees can view earlier completed steps.
 - Employees cannot silently modify a completed step.
-- The owner can reopen a completed step.
-- Reopened steps retain their original history.
+- The owner can reopen a completed step and must give a reason.
+- Reopened steps retain their original history: the earlier attempt, answers, proof, names, and times never change. The step is redone as a new attempt with the same requirements.
 - Progress should autosave.
 - Every Final check item must be checked before a step can be completed, unless this specification says otherwise. Reference lists do not need to be checked item by item.
 - The system should be designed for future offline saving and later synchronization, but offline functionality is not required in the first version.

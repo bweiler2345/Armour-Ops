@@ -113,7 +113,7 @@ OpenNext copies every variable from the `.env*` files into the Worker bundle. `n
 
 | Role | Stored as | Summary |
 | --- | --- | --- |
-| Owner/Admin | `profiles.role = 'owner'` | Full read and write access to all jobs, teams, steps, evidence, milestones, Weekly Setup submissions, and the Team screen. More than one owner account is supported. |
+| Owner/Admin | `profiles.role = 'owner'` | Full read access, and management of jobs, teams, steps, milestones, the Custom Step Library, reference pictures, Weekly Setup submissions, and the Team screen. Changes employee step work (checks, entries, proof, Complete Step) only after joining the job as an Owner/Working Member (Phase 8). More than one owner account is supported. |
 | Employee | `profiles.role = 'employee'` | Read-only access to every job visible to employees. Full working access to jobs they are assigned to. Submits Weekly Setup checks. |
 
 ### Authentication
@@ -236,7 +236,7 @@ Display labels for `job_status` match the spec wording exactly, for example `wai
 
 Standard and custom steps share one structure. A step has:
 
-- A title, goal, optional reference image, and confirmation text.
+- A title, goal, optional reference pictures (owner-supplied guidance, never proof), and confirmation text.
 - An ordered set of **content blocks**. Each block keeps its heading from the spec and has a kind:
   - `ordered_list`: numbered instructions, read only (for example "Instructions", "Choose the setup location").
   - `reference_list`: a visual list that is displayed but never checked item by item. Used for the **mixing-station checklist**, the **inside-work-area checklist**, and the **final action** in the two setup steps. "Second weenie roller when needed" is reference text inside the inside-work-area list.
@@ -329,7 +329,7 @@ Rows exist only for toggles that are on. Each change is also written to `job_act
 **`media_assets`**
 `id` (client-generated), `job_id` FK, `job_step_id` FK, `attempt_id` FK, `proof_requirement_id` FK, `uploaded_by`, `media_type proof_media_type`, `object_key` (unique R2 key), `mime_type`, `declared_size_bytes`, `size_bytes` (confirmed from R2), `duration_seconds` (reported by the browser, informational), `upload_method media_upload_method`, `r2_upload_id` (multipart only), `status media_status`, `created_at`, `uploaded_at`, `deleted_at`.
 
-Reference images for steps use `reference_image_key` on the step rows and are uploaded by the owner through the same intent flow.
+Reference pictures for steps are separate from proof: their own records, their own private R2 keys (`reference/...`), and their own access check. They are uploaded by the owner through the same direct-upload flow (Phase 8).
 
 #### Activity and milestones
 
@@ -551,15 +551,16 @@ Joining, adding, or removing team members does not change the status. Status cha
 
 ### How owner reopening works
 
-- The owner can reopen any completed step, with an optional reason.
+- The owner can reopen any completed step on a job that is not Complete, and must give a reason.
 - `reopen_step` marks the current attempt `superseded` (keeping every response, media file, name, and timestamp), creates a `step_reopenings` record, sets the step to `reopened`, and writes activity.
 - The step appears at the top of the job for the team as needing to be redone. Any assigned employee completes a new attempt using the same rules.
-- Reopening an earlier step does not undo later completed steps or milestones. A stage cannot move to its waiting status, and the job cannot be completed, while any relevant step is reopened.
+- Reopening an earlier step does not undo later completed steps or milestones, and the job status never moves backward. While any step is reopened: later unfinished steps stay locked until it is completed again; the installation milestone after its stage cannot be marked; Completion Work stays locked; and the job cannot be completed.
+- Complete jobs cannot be reopened (they are read only).
 
 ### Other owner step edits (per job only)
 
-- **Add custom step:** same structure as standard steps, at the chosen employee stage and position. Custom steps cannot be added to owner milestone stages.
-- **Remove:** soft delete. The step keeps its history and drops out of progress.
+- **Add custom step:** same structure as standard steps, one-time or imported from the Custom Step Library, at the chosen employee stage and position. Custom steps cannot be added to owner milestone stages or Completion Work. On an active job, only safe positions are allowed: in a preparation stage the job has not finished, and before only steps nobody has started. Complete jobs cannot be changed.
+- **Remove:** (Phase 8: only custom steps on jobs not yet claimed, where no work can exist.) Later: soft delete. The step keeps its history and drops out of progress.
 - **Reorder:** changes positions for steps that are not yet completed.
 - **Skip:** marks the step `skipped` with owner and time. It counts as satisfied for unlocking and is excluded from progress.
 - **Edit:** changes the job's snapshot rows. Completed attempts keep the text shown at the time.
@@ -828,11 +829,30 @@ Each phase ends with lint, a production build, its listed tests, and a check on 
   - **Screens:** the Owner Dashboard shows counts and links for jobs waiting for each installation and ready to mark Complete; owner job pages show large Mark Base Coat Installed, Mark Top Coat Installed, and Mark Job Complete buttons only when valid, each with a confirmation; employee job pages show Waiting for owner, All work done, and Complete states; the workflow map shows who marked each milestone and when, and shows Not applicable items; the Completion Work step screen has one large button with a confirmation. Error messages for team checks are now shown as written instead of "Only an active owner can do this."
   - **Tests:** 22 new database tests and unit tests for section moves, dashboard counts, milestone states, and installation terminology.
 
-### Phase 8: Owner reopening and step editing
+### Phase 8: Reopening, custom steps, reusable step library, reference pictures, and owner working membership
 
-- **Features:** Reopen, skip, remove, reorder, edit, and add custom steps using the shared step editor with structured inputs and proof types. Clearing an edit hold.
+- **Approved decisions (2026-09-27):**
+  1. Custom steps can be created for work such as Sand Stairs or Grind Down Lip.
+  2. A custom step can be one-time or saved to an owner-only Custom Step Library.
+  3. Library steps can be imported into future jobs without recreating them.
+  4. Importing creates a job-specific snapshot. Later edits to the library item never change a job that already imported it.
+  5. Library items can be edited for future imports and archived. Used versions and historical job copies are never destroyed.
+  6. Standard and custom steps may have optional owner-supplied instructional/reference pictures.
+  7. Reference pictures are visual guidance only and never count as employee proof.
+  8. The owner can optionally add reference pictures later through the app.
+  9. Existing jobs remain snapshot-safe. Template and library changes do not silently alter existing jobs.
+  10. The owner can join an active job as an Owner/Working Member.
+  11. The employee lead remains the crew lead. Joining does not make the owner lead or replace the lead.
+  12. A joined owner may complete employee tasks, checks, structured inputs, and proof uploads, with full attribution.
+  13. An owner who has not joined remains view-only for employee work, while keeping normal owner milestone and management powers.
+  14. The owner can leave the working team without affecting owner access or the employee lead.
+  15. Problem reporting remains deferred.
+- **Reopening:** a reason is required (this replaces the earlier "optional reason").
+- **Not in Phase 8:** skipping standard steps, reordering steps, and editing a job's standard step content remain in the spec's owner list for a later phase.
+
+- **Features:** Reopen with a required reason; one-time and library custom steps with the shared step editor (structured inputs and proof types); the Custom Step Library with versions and archiving; reference pictures on standard, library, and job steps; Owner/Working Member join and leave. (Clearing an edit hold was delivered in Phase 5.)
 - **Files or areas:** migrations, `src/lib/actions/owner-steps.ts`, owner edit screens.
-- **Testing:** Database tests: reopened steps keep their earlier attempt, responses, and media; custom steps follow the same validation as standard steps; steps cannot be added to milestone stages.
+- **Testing:** Database tests: reopened steps keep their earlier attempt, responses, and media; custom steps follow the same validation as standard steps; steps cannot be added to milestone stages or unsafe positions; library versions never change imported steps; reference pictures never satisfy proof; working owners can work only after joining.
 - **Confirm before moving on:** The owner has reopened a step and added a custom step on a test job and confirmed the history looks right.
 
 ### Phase 9: Owner dashboard and live monitoring
