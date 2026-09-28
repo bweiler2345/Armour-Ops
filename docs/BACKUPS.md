@@ -9,6 +9,8 @@ Every Sunday at 09:00 UTC (and whenever you run it by hand), GitHub Actions expo
 - Names: `backups/armour-ops-<UTC timestamp>-<run id>.dump.gpg` in the `armour-ops-backups` bucket
 - Logs show only steps, sizes, table counts, and object names; never data, passwords, connection strings, keys, or links
 
+**Status: running (verified 2026-09-27).** The six secrets are set, the first **Weekly backup** run completed successfully, the encrypted backup appeared in the private `armour-ops-backups` bucket, and the encryption key is stored safely outside GitHub. A restore drill (below) is recommended but optional; it is not required for launch.
+
 Backups contain customer and account data. They exist only encrypted, in the private bucket; never download them to shared places or commit them (`.gitignore` blocks `*.dump` and `*.dump.gpg`).
 
 ## GitHub Actions secrets
@@ -38,9 +40,9 @@ The database connection uses the `postgres` role because `pg_dump` must read eve
 4. **Secrets.** Add the six secrets above.
 5. **Test run.** GitHub › **Actions › Weekly backup › Run workflow**. It should finish green with "Verified in R2" and "Done. N backups kept." In R2 › `armour-ops-backups` › Objects, one `backups/armour-ops-…dump.gpg` object appears.
 
-## Restore test (safe: never touches the live database)
+## Restore test (optional drill; safe: never touches the live database)
 
-Do this after the first backup and a few times a year. You need Docker Desktop (already installed) and the encryption key.
+Not yet done, and not required for launch. Recommended once soon and then a few times a year, so a real recovery is never the first attempt. You need Docker Desktop (already installed) and the encryption key.
 
 1. **Download** the newest backup from R2 › `armour-ops-backups` › Objects › the object › **Download**, into a private folder such as `C:\Users\<you>\ArmourRestoreTest`.
 2. **Decrypt** (Git Bash, in that folder; paste the key when asked for the passphrase):

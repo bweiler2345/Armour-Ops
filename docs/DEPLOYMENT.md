@@ -5,14 +5,14 @@ Armour Ops runs on **Cloudflare Workers Free** at the free `workers.dev` address
 | Thing | Value |
 | --- | --- |
 | Worker name | `armour-ops` |
-| Production URL | `https://armour-ops.<your-workers-subdomain>.workers.dev` (record the exact address below after the first deployment) |
+| Production URL | `https://armour-ops.armourfloorsops.workers.dev` |
 | Production media bucket | `armour-ops-media` |
 | Backup bucket | `armour-ops-backups` |
 | Deploy workflow | `.github/workflows/deploy.yml` (every push to `main`, or run by hand) |
 | Backup workflow | `.github/workflows/weekly-backup.yml` (Sundays 09:00 UTC, or run by hand) |
 | Health check | `<production URL>/api/health` answers `{"status":"ok"}` |
 
-**Production URL (fill in after step 6):** `https://armour-ops.________.workers.dev`
+**Status: live and verified (2026-09-27).** See "Launch verification" below.
 
 ## Why GitHub Actions deploys (not Cloudflare's Git integration)
 
@@ -43,15 +43,15 @@ Both work on the free plans. GitHub Actions was chosen because the weekly backup
 4. **GitHub settings.** In the GitHub repository: **Settings › Secrets and variables › Actions**.
    - **Variables** tab › New repository variable: `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (the same values as in `.env.local`).
    - **Secrets** tab › New repository secret: `CLOUDFLARE_API_TOKEN` (step 3) and `CLOUDFLARE_ACCOUNT_ID` (step 1).
-5. **First deployment.** GitHub › **Actions** › **Deploy** › **Run workflow** (branch `main`). Wait for the green check. The Deploy step prints the address, `https://armour-ops.<subdomain>.workers.dev`. Record it at the top of this file.
+5. **First deployment.** GitHub › **Actions** › **Deploy** › **Run workflow** (branch `main`). Wait for the green check. The Deploy step prints the address (for Armour Ops: `https://armour-ops.armourfloorsops.workers.dev`).
 6. **Worker secrets.** Cloudflare › Workers & Pages › `armour-ops` › **Settings › Variables and Secrets** › **Add**, choosing type **Secret** for each: `SUPABASE_SECRET_KEY`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, and `R2_BUCKET` (value `armour-ops-media`). Deploy when asked. Secrets stay across later deployments. (Command-line alternative after `npx wrangler login`: `npx wrangler secret put SUPABASE_SECRET_KEY` and so on; it asks for the value without showing it.)
 7. **Health-check variable.** GitHub › Settings › Secrets and variables › Actions › **Variables**: add `PRODUCTION_URL` = the address from step 5 (no trailing slash).
 8. **R2 CORS for production.** R2 › `armour-ops-media` › Settings › **CORS Policy**:
    ```json
-   [{"AllowedOrigins":["https://armour-ops.<subdomain>.workers.dev"],"AllowedMethods":["PUT"],"AllowedHeaders":["content-type"],"MaxAgeSeconds":3600}]
+   [{"AllowedOrigins":["https://armour-ops.armourfloorsops.workers.dev"],"AllowedMethods":["PUT"],"AllowedHeaders":["content-type"],"MaxAgeSeconds":3600}]
    ```
    Use the exact address from step 5. Leave the development bucket's policy as it is.
-9. **Supabase URL settings.** Supabase › **Authentication › URL Configuration**: **Site URL** = the production address; under **Redirect URLs** add `https://armour-ops.<subdomain>.workers.dev/**` and keep `http://localhost:3000/**`. (Armour Ops signs in with passwords and sends no emails, so these are only a safety net.)
+9. **Supabase URL settings.** Supabase › **Authentication › URL Configuration**: **Site URL** = the production address; under **Redirect URLs** add `https://armour-ops.armourfloorsops.workers.dev/**` and keep `http://localhost:3000/**`. (Armour Ops signs in with passwords and sends no emails, so these are only a safety net.)
 10. **Supabase checks.** In **Authentication › Sign In / Providers**: **Allow new users to sign up** stays **off**; **Minimum password length** is **10**; **Secure password change** stays **off**. Then run the SQL checks below in the SQL Editor.
 11. **Backups:** follow `docs/BACKUPS.md`.
 12. **Production verification:** work through the checklist below with fictional test data.
@@ -85,6 +85,27 @@ where n.nspname = 'public'
   and has_function_privilege('authenticated', p.oid, 'execute');
 ```
 
+## Launch verification (2026-09-27)
+
+The one-time setup above is done. The owner confirmed in production:
+
+- The **Deploy** workflow completed successfully on GitHub Actions, and `/api/health` returned `{"status":"ok"}`.
+- Owner sign-in and the Owner Dashboard work.
+- Employee sign-in and step saving work.
+- Picture and video uploads work through the private `armour-ops-media` bucket, and its R2.dev public access is disabled.
+- The R2 CORS rule and the Supabase URL configuration use the final production address.
+- The **Weekly backup** workflow completed successfully; the encrypted backup appeared in the private `armour-ops-backups` bucket (see `docs/BACKUPS.md`).
+
+The checklist at the end of this file stays as the full re-check to use after major changes.
+
+**Optional future work (not required for launch):**
+
+- **Restore drill:** a test restore of a real backup into a scratch database, following `docs/BACKUPS.md`. The restore steps are documented and the backup script was tested end to end with stand-ins, but a real backup has not yet been restored anywhere. Recommended once soon and a few times a year.
+- **Scheduled media cleanup:** a Workers Cron Trigger for the five-year media and reference-picture deletion and abandoned-upload cleanup. The database functions exist; nothing is due for deletion until five years after the first completed job, and R2 already aborts incomplete multipart uploads after 7 days.
+- **Polish:** removing the "Preview" badge from the app header, an add-to-home-screen icon, and restoring archived inventory items (today an archived item can only be added again as a new item).
+- **Testing:** an automated end-to-end browser suite against production-like builds.
+- **Maintenance:** GitHub will move its checkout and Node setup actions to a newer Node.js version and `ubuntu-latest` to a newer Ubuntu; update the workflow action versions when GitHub asks.
+
 ## Everyday deployment
 
 Push (or merge) to `main`. The **Deploy** workflow runs every check; if any fails, nothing is deployed. A newer push waits for the running deployment to finish. To redeploy the current `main` by hand: **Actions › Deploy › Run workflow**.
@@ -104,7 +125,7 @@ Everything is on free plans. Watch these in the Cloudflare dashboard: Workers Fr
 
 ## Production verification checklist
 
-Use fictional clients, addresses, and pictures only. Test on a desktop browser and an iPhone, with the computer's `npm run dev` stopped.
+The items verified at launch are listed above; use this full list after major changes. Use fictional clients, addresses, and pictures only. Test on a desktop browser and an iPhone, with the computer's `npm run dev` stopped.
 
 - [ ] `<URL>/api/health` shows `{"status":"ok"}`.
 - [ ] Signed out, opening `<URL>/jobs` goes to Sign In.

@@ -663,7 +663,7 @@ The approved limits and formats are in the spec's [Pictures and videos](./PRODUC
 - **Retention:** after each successful upload, the workflow lists the objects under `backups/` and deletes all but the newest 12.
 - **Privacy:** the repository is public, so workflow logs are public. The workflow prints only success, failure, and object counts, never data, connection strings, or object contents.
 - **Failure handling:** a failed run leaves the existing backups untouched and is visible as a failed workflow run. Old backups are only deleted after a new one uploads successfully.
-- **Restore:** a documented restore procedure, tested once into a scratch database during Phase 11.
+- **Restore:** a documented restore procedure (`docs/BACKUPS.md`). A test restore into a scratch database is an optional drill after launch, not a launch requirement.
 
 ---
 
@@ -701,6 +701,8 @@ The approved limits and formats are in the spec's [Pictures and videos](./PRODUC
 ## 8. Build phases
 
 Each phase ends with lint, a production build, its listed tests, and a check on a real iPhone where UI changed. Nothing moves forward until the confirmation items are met. Each phase is a separate reviewable change.
+
+**All 11 phases of this plan are complete and verified (2026-09-27).** Armour Ops is live at `https://armour-ops.armourfloorsops.workers.dev`. Remaining items are optional and listed under Phase 11.
 
 ### Phase 1: Sign-in and route protection
 
@@ -896,13 +898,18 @@ This phase is independent of the job workflow and can move earlier if the owner 
 
 ### Phase 11: Hardening, scheduled jobs, and deployment (only when approved)
 
-- **Status: built; waiting for the owner's Cloudflare, GitHub, and R2 setup, then production verification.** How it was built:
+- **Status: complete and verified (2026-09-27).** The owner set up Cloudflare, GitHub, R2, and Supabase following `docs/DEPLOYMENT.md` and `docs/BACKUPS.md`, and confirmed in production at `https://armour-ops.armourfloorsops.workers.dev`: the Deploy workflow completed successfully on GitHub Actions; `/api/health` returned `{"status":"ok"}`; the owner signed in and the Owner Dashboard worked; an employee signed in and step work saved; picture and video uploads worked through the private `armour-ops-media` bucket; the bucket's R2.dev public access is disabled; the R2 CORS rule and the Supabase URL configuration use the final production address; the Weekly backup workflow completed successfully and its encrypted backup appeared in the private `armour-ops-backups` bucket; and the backup encryption key is stored safely outside GitHub. No credentials, account identifiers, or personal details are recorded in the repository. How it was built:
   - **Hosting:** Cloudflare Workers Free at the free `workers.dev` address (Worker `armour-ops`), built on Linux by GitHub Actions (`.github/workflows/deploy.yml`): every push to `main` (or a manual run) installs, lints, type checks, runs all unit and database tests, builds, runs the Cloudflare build with its secret scan, scans the browser bundles, checks the Worker is under the Workers Free limit (`npm run cf:size`), and only then deploys; one deployment at a time; a health check follows. GitHub Actions was chosen over Cloudflare's Git integration so one place gates deployments on every check and also runs backups. The app's runtime secrets are Cloudflare Worker secrets; GitHub holds only a deploy token and the public Supabase values. No custom domain; `upload_source_maps` is off. Rollback is from the Cloudflare Deployments page or a Git revert, and never touches the database.
   - **Production safety:** `/api/health` answers without a session and without details. Security headers on every response (nosniff, DENY framing, strict referrer policy, a restrictive Permissions-Policy, HSTS, and a CSP limited to `frame-ancestors`, `base-uri`, `form-action`, and `object-src` so R2 uploads, signed media links, and sign-in keep working). Every signed-in page checks the user on the server and is sent `private, no-store`. `DEV_LAN_HOSTS` stays development only.
   - **Backups:** `.github/workflows/weekly-backup.yml` and `scripts/backup/backup.sh`: weekly and on demand, never overlapping; `pg_dump` custom format of the `public` and `auth` schemas over the Supabase Session pooler; an archive and table check; GnuPG AES-256 encryption with a decryption check; upload to the private `armour-ops-backups` bucket with a backup-only R2 token; size and checksum verified in R2; only then the newest 12 are kept. Nothing secret or from the database is printed. Restore test and recovery steps are in `docs/BACKUPS.md`.
   - **Media:** production uses a separate private bucket, `armour-ops-media`, with its own token and a CORS rule for the production address only; development media isn't copied.
   - **Tests:** unit tests for retention, the workflows' order and secret handling, the Wrangler config, headers, the health check, and protected pages; a database test that every table has Row Level Security, signed-out visitors have no table access, and server-only functions stay unavailable to signed-in users. The backup script was also run end to end against stand-in database and R2 tools with real GnuPG: a failed export and a corrupted upload left every existing backup in place, and a good run kept the newest 12.
-  - **Not done in Phase 11:** the scheduled media retention cleanup and abandoned-upload cleanup (their database functions exist; scheduling them needs a Worker cron and was not part of the approved Phase 11 request).
+  - **Live-test fix (deployment, verified):** the first real deployment failed because `wrangler deploy` hands off to `opennextjs-cloudflare deploy`, which re-runs Wrangler through a shell without quoting, so the quoted deploy message split and the commit's short SHA was read as the Worker's entry point. The workflow now runs `opennextjs-cloudflare deploy` directly with a single-word message, and a test rejects any deploy argument with spaces, quotes, or a positional value. The next deployment succeeded.
+  - **Launch requirements vs. optional work:** everything above was required for launch and is done. The following are optional and can be scheduled separately:
+    - A restore drill of a real backup into a scratch database (`docs/BACKUPS.md`).
+    - Workers Cron Triggers for the five-year media retention cleanup and abandoned-upload cleanup (the database functions exist; not part of the approved Phase 11 request, and nothing is due for years).
+    - Removing the "Preview" header badge, an add-to-home-screen icon, and restoring archived inventory items.
+    - An automated end-to-end browser suite, and a live check that a 13th backup removes the oldest (covered today by unit tests and the scripted simulation).
 
 
 - **Features:** Remove the "Preview" badge and remaining mock data. Error and loading states. Add-to-home-screen icon. Production Supabase and R2 settings. Production deployment on Cloudflare Workers Free with OpenNext. Workers Cron Triggers for daily five-year media deletion and stale upload cleanup. The weekly database backup workflow with 12-backup retention. The Next.js production checklist.

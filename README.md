@@ -181,9 +181,19 @@ What exists:
 - Submitted weeks are read only; the owner can reopen one with a reason, and every submission is kept.
 - The owner manages trailers and the inventory list for future weeks, reviews each week and its history, and sees each trailer's state and combined shortages on the Owner Dashboard.
 
-**Phase 11: production deployment and backups — built; waiting for account setup and production verification.** See `docs/DEPLOYMENT.md` and `docs/BACKUPS.md`.
+**Phase 11: production deployment and backups — complete and verified in production.** Armour Ops is live at `https://armour-ops.armourfloorsops.workers.dev`. Deployment, the health check, owner and employee sign-in, the Owner Dashboard, step saving, picture and video uploads to the private production bucket, the R2 and Supabase production settings, and the first weekly encrypted backup were tested successfully. See `docs/DEPLOYMENT.md` and `docs/BACKUPS.md`.
 
 - GitHub Actions checks every change and deploys to Cloudflare Workers Free at a free `workers.dev` address when all checks pass.
 - Weekly encrypted database backups go to a private R2 bucket, keeping the newest 12.
 
-Not built yet: skipping, reordering, and editing standard job steps; role changes on the Team screen; scheduled media retention cleanup. See the implementation plan for the order.
+**All 11 phases of the implementation plan are complete.**
+
+**Optional future work (not required for launch):**
+
+- **Restore drill:** a test restore of a real backup into a scratch database, following `docs/BACKUPS.md`. The restore steps are documented and the backup script was tested end to end with stand-ins, but a real backup has not yet been restored anywhere. Recommended once soon and a few times a year.
+- **Scheduled media cleanup:** a Workers Cron Trigger for the five-year media and reference-picture deletion and abandoned-upload cleanup. The database functions exist; nothing is due for deletion until five years after the first completed job, and R2 already aborts incomplete multipart uploads after 7 days.
+- **Polish:** removing the "Preview" badge from the app header, an add-to-home-screen icon, and restoring archived inventory items (today an archived item can only be added again as a new item).
+- **Testing:** an automated end-to-end browser suite against production-like builds.
+- **Maintenance:** GitHub will move its checkout and Node setup actions to a newer Node.js version and `ubuntu-latest` to a newer Ubuntu; update the workflow action versions when GitHub asks.
+
+Not built in version one: skipping, reordering, and editing standard job steps; role changes on the Team screen; and the features deferred in the implementation plan.

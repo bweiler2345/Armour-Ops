@@ -428,7 +428,7 @@ You need the owner, two active test employees (A and B), and a phone. Weeks run 
 
 ## 18. Phase 11: Production and backups
 
-No new database migration. Production uses this same Supabase project (all migrations through step 17 must be installed).
+**Status: complete and verified in production (2026-09-27).** No new database migration. Production uses this same Supabase project (all migrations through step 17 are installed). The Supabase URL configuration uses the production address, `https://armour-ops.armourfloorsops.workers.dev`, and owner and employee sign-in work there.
 
 - **Deployment, Cloudflare secrets, the production R2 bucket and CORS, and Supabase URL settings:** `docs/DEPLOYMENT.md`, "One-time setup" steps 1 to 10, including read-only SQL checks for the live project.
 - **Weekly encrypted backups and a safe restore test:** `docs/BACKUPS.md`.
