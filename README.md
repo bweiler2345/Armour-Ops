@@ -163,7 +163,7 @@ What exists:
 - The owner marks the job Complete once everything is done. Complete jobs are read only, and their pictures and videos are kept for five years.
 - Owner notifications are in-app only: the Owner Dashboard shows counts and links for jobs waiting for each installation or ready to mark Complete. Employees text the owner when a job is ready for an installation.
 
-**Phase 8: reopening, custom steps, the Custom Step Library, reference pictures, and Working Owner — built; waiting for live verification.** Setup steps are in `docs/SUPABASE_SETUP.md`, step 15.
+**Phase 8: reopening, custom steps, the Custom Step Library, reference pictures, and Working Owner — complete and verified against the live Supabase project and the private R2 bucket.** Library versioning and archiving, imports and one-time steps, safe active-job insertion, reference pictures as guidance only, Owner/Working Member with attribution, and reopening with a required reason were tested successfully, including a live-test fix that shows Working Owners on every team display. Setup steps are in `docs/SUPABASE_SETUP.md`, step 15.
 
 - The owner keeps reusable custom steps (such as Sand Stairs) in a versioned Custom Step Library, imports them into jobs, or adds one-time steps. Jobs keep the copy they imported.
 - Owner reference pictures guide employees on standard and custom steps. They are private and never count as proof.
