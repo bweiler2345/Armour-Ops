@@ -76,3 +76,11 @@ body {
   opacity: 0;
   animation: reveal-late 0.2s ease-out 20s forwards;
 }
+
+/* The Owner Dashboard uses the full width of larger screens; every other
+   screen keeps the narrow phone-first column. */
+@media (min-width: 1024px) {
+  .app-shell:has(.dashboard-wide) {
+    max-width: 76rem;
+  }
+}

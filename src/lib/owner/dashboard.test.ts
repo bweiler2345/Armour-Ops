@@ -224,6 +224,16 @@ describe("dashboard rows", () => {
     expect(jobLinks({ id: "j2", currentStepId: null })).toEqual({ job: "/owner/jobs/j2", step: null });
   });
 
+  it("leads each card with the client name and never displays the job number", () => {
+    const board = readFileSync("src/app/(app)/owner/OwnerDashboard.tsx", "utf8");
+    // The number stays searchable (see the search test) but isn't shown.
+    expect(board).not.toMatch(/\{(job|a)\.jobNumber\}/);
+    expect(board).toMatch(/<h3 className="text-2xl[^"]*font-bold[^"]*">\{job\.clientName\}<\/h3>/);
+    expect(board).toContain("{job.address}");
+    // Large, glove-friendly buttons stay.
+    expect(board.match(/min-h-16/g)?.length).toBeGreaterThanOrEqual(3);
+  });
+
   it("is owner only on the server, and the page never builds file links or shows emails", () => {
     const page = readFileSync("src/app/(app)/owner/page.tsx", "utf8");
     expect(page).toContain("await requireOwner()");

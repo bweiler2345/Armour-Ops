@@ -61,7 +61,7 @@ export default function OwnerDashboard({
   const set = (changes: Partial<Filters>) => setFilters((f) => ({ ...f, ...changes }));
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="dashboard-wide flex flex-col gap-6">
       <p role="status" className={`text-sm ${stale ? "font-semibold text-gold-300" : "text-charcoal-400"}`}>
         {stale ? "This may be out of date. Check your connection; it refreshes automatically." : "Updates automatically."} Last
         updated {formatTime(loadedAt)}.
@@ -138,7 +138,7 @@ export default function OwnerDashboard({
                 {filtered ? "No jobs match these filters." : g.empty}
               </p>
             ) : (
-              <ul className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+              <ul className="grid grid-cols-1 gap-6 xl:grid-cols-2">
                 {g.jobs.map((job) => (
                   <DashboardCard key={job.id} job={job} category={g.key} />
                 ))}
@@ -165,7 +165,7 @@ export default function OwnerDashboard({
                 <Link href={`/owner/jobs/${a.jobId}`} className="block rounded-2xl border border-charcoal-800 bg-charcoal-900 px-4 py-3">
                   <span className="block text-[15px] font-medium text-white">{describeActivity(a).title}</span>
                   <span className="block text-sm text-charcoal-400">
-                    #{a.jobNumber} · {a.clientName} · {formatDateTime(a.at)}
+                    {a.clientName} · {formatDateTime(a.at)}
                   </span>
                 </Link>
               </li>
@@ -208,110 +208,133 @@ function Chip({
 function DashboardCard({ job, category }: { job: DashboardJob; category: Category }) {
   const links = jobLinks(job);
   const action = ownerAction(job);
-  const waitingForOwner = category === "needs_owner";
+  const highlighted = category === "needs_owner" || Boolean(job.reopenedStepTitle);
   const noTeam = !job.lead && categoryOf(job) === "active";
+  const showProgress = category !== "scheduled" && category !== "available";
+  const team = [
+    job.lead && `${job.lead.name} (Lead)`,
+    ...job.members.map((m) => m.name),
+    ...job.workingOwners.map((w) => `${w.name} (${WORKING_OWNER_LABEL})`),
+  ].filter(Boolean);
 
   return (
     <li
-      className={`flex flex-col gap-3 rounded-3xl border p-4 ${
-        waitingForOwner || job.reopenedStepTitle ? "border-gold-500/60 bg-gold-900/20" : "border-charcoal-800 bg-charcoal-900"
+      className={`flex flex-col gap-5 rounded-3xl border-2 p-5 shadow-lg shadow-black/30 sm:p-6 ${
+        highlighted ? "border-gold-500/70 bg-gold-900/20" : "border-charcoal-700 bg-charcoal-900"
       }`}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="truncate text-lg font-semibold text-white">
-            #{job.jobNumber} · {job.clientName}
-          </p>
-          <p className="truncate text-sm text-charcoal-300">{job.address}</p>
-          <p className="text-sm text-charcoal-400">
-            {job.squareFeet.toLocaleString("en-US")} sq ft · {job.flakeColor} · {formatDate(job.scheduledDate)}
-          </p>
-        </div>
-        <span className="shrink-0 rounded-full bg-white/5 px-3 py-1 text-xs font-semibold text-gold-200 ring-1 ring-gold-400/30">
+      {/* Who and where: the client name is the headline. */}
+      <header className="flex flex-col gap-2">
+        <span className="self-start rounded-full bg-white/5 px-3 py-1 text-xs font-semibold tracking-wide text-gold-200 ring-1 ring-gold-400/30">
           {statusLabel(job)}
         </span>
-      </div>
-
-      {action && (
-        <p className="flex items-center gap-2 text-[15px] font-semibold text-gold-200">
-          <KeyIcon className="h-5 w-5 shrink-0" /> Waiting for owner: {action}
+        <h3 className="text-2xl leading-tight font-bold break-words text-white sm:text-[1.75rem]">{job.clientName}</h3>
+        <p className="text-[17px] leading-snug break-words text-charcoal-200">{job.address}</p>
+        <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-charcoal-400">
+          <span>{formatDate(job.scheduledDate)}</span>
+          <span>{job.squareFeet.toLocaleString("en-US")} sq ft</span>
+          <span>{job.flakeColor} flake</span>
         </p>
-      )}
-      {job.reopenedStepTitle && (
-        <p className="flex items-center gap-2 text-[15px] font-semibold text-gold-200">
-          <AlertIcon className="h-5 w-5 shrink-0" /> Reopened: “{job.reopenedStepTitle}” needs redoing
-        </p>
-      )}
+      </header>
 
-      {category !== "scheduled" && category !== "available" && (
-        <div>
-          <p className="text-[15px] text-white">
-            {job.status === "complete"
-              ? `Completed ${job.completedAt ? formatDateTime(job.completedAt) : ""}`
-              : [job.currentStageName, job.currentStepTitle].filter(Boolean).join(" · ") || "Not started"}
-          </p>
-          <div className="mt-2 flex items-center gap-3">
-            <div className="h-2 flex-1 overflow-hidden rounded-full bg-charcoal-700" aria-hidden>
-              <div className="gold-gradient h-full rounded-full" style={{ width: `${job.progress.percent}%` }} />
-            </div>
-            <span className="text-sm text-charcoal-300 tabular-nums">
-              {job.progress.completed} of {job.progress.total}
-            </span>
-          </div>
+      {(action || job.reopenedStepTitle) && (
+        <div className="flex flex-col gap-2 rounded-2xl bg-charcoal-950/60 p-4">
+          {action && (
+            <p className="flex items-center gap-2 text-[16px] font-semibold text-gold-200">
+              <KeyIcon className="h-5 w-5 shrink-0" /> Waiting for owner: {action}
+            </p>
+          )}
+          {job.reopenedStepTitle && (
+            <p className="flex items-center gap-2 text-[16px] font-semibold text-gold-200">
+              <AlertIcon className="h-5 w-5 shrink-0" /> Reopened: “{job.reopenedStepTitle}” needs redoing
+            </p>
+          )}
         </div>
       )}
 
-      {job.editor && (
-        <p className="flex items-center gap-2 text-sm text-sky-100">
-          <LockIcon className="h-4 w-4 shrink-0" /> {job.editor.name} is editing “{job.editor.stepTitle}” until about{" "}
-          {formatTime(job.editor.expiresAt)}
-        </p>
-      )}
-      {(job.unfinishedUploads > 0 || job.failedUploads > 0) && (
-        <p className={`flex items-center gap-2 text-sm ${job.failedUploads > 0 ? "text-red-200" : "text-charcoal-300"}`}>
-          <CameraIcon className="h-4 w-4 shrink-0" />
-          {[
-            job.unfinishedUploads > 0 && `${job.unfinishedUploads} upload${job.unfinishedUploads === 1 ? "" : "s"} in progress`,
-            job.failedUploads > 0 && `${job.failedUploads} failed or unfinished upload${job.failedUploads === 1 ? "" : "s"} to fix`,
-          ]
-            .filter(Boolean)
-            .join(" · ")}
-        </p>
-      )}
+      {/* Work details: one column on phones, two side by side on wider cards. */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        {showProgress && (
+          <div>
+            <p className="text-xs font-semibold tracking-[0.12em] text-charcoal-400 uppercase">Now</p>
+            <p className="mt-1 text-[16px] leading-snug text-white">
+              {job.status === "complete"
+                ? `Completed ${job.completedAt ? formatDateTime(job.completedAt) : ""}`
+                : [job.currentStageName, job.currentStepTitle].filter(Boolean).join(" · ") || "Not started"}
+            </p>
+            <div className="mt-2 flex items-center gap-3">
+              <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-charcoal-700" aria-hidden>
+                <div className="gold-gradient h-full rounded-full" style={{ width: `${job.progress.percent}%` }} />
+              </div>
+              <span className="text-sm text-charcoal-300 tabular-nums">
+                {job.progress.completed} of {job.progress.total}
+              </span>
+            </div>
+          </div>
+        )}
 
-      {(job.lead || job.members.length > 0 || job.workingOwners.length > 0 || noTeam) && (
-        <p className="flex items-start gap-2 text-sm text-charcoal-300">
-          <UsersIcon className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>
-            {noTeam && <span className="font-semibold text-gold-200">No team assigned. </span>}
-            {[
-              job.lead && `${job.lead.name} (Lead)`,
-              ...job.members.map((m) => m.name),
-              ...job.workingOwners.map((w) => `${w.name} (${WORKING_OWNER_LABEL})`),
-            ]
-              .filter(Boolean)
-              .join(", ")}
-          </span>
-        </p>
-      )}
+        {(team.length > 0 || noTeam) && (
+          <div>
+            <p className="text-xs font-semibold tracking-[0.12em] text-charcoal-400 uppercase">Team</p>
+            <p className="mt-1 flex items-start gap-2 text-[15px] leading-snug text-charcoal-200">
+              <UsersIcon className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>
+                {noTeam && <span className="font-semibold text-gold-200">No team assigned. </span>}
+                {team.join(", ")}
+              </span>
+            </p>
+          </div>
+        )}
 
-      {job.lastActivity && (
-        <p className="text-sm text-charcoal-400">
-          Last:{" "}
-          {describeActivity({ type: job.lastActivity.type, actorName: job.lastActivity.actorName, details: { title: job.lastActivity.title }, names: {} }).title}{" "}
-          · {formatDateTime(job.lastActivity.at)}
-        </p>
-      )}
+        {(job.editor || job.unfinishedUploads > 0 || job.failedUploads > 0) && (
+          <div className="flex flex-col gap-2">
+            {job.editor && (
+              <p className="flex items-start gap-2 text-[15px] text-sky-100">
+                <LockIcon className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>
+                  {job.editor.name} is editing “{job.editor.stepTitle}” until about {formatTime(job.editor.expiresAt)}
+                </span>
+              </p>
+            )}
+            {(job.unfinishedUploads > 0 || job.failedUploads > 0) && (
+              <p className={`flex items-start gap-2 text-[15px] ${job.failedUploads > 0 ? "text-red-200" : "text-charcoal-200"}`}>
+                <CameraIcon className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>
+                  {[
+                    job.unfinishedUploads > 0 && `${job.unfinishedUploads} upload${job.unfinishedUploads === 1 ? "" : "s"} in progress`,
+                    job.failedUploads > 0 && `${job.failedUploads} failed or unfinished upload${job.failedUploads === 1 ? "" : "s"} to fix`,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </span>
+              </p>
+            )}
+          </div>
+        )}
 
-      <div className={`grid gap-2 ${links.step ? "grid-cols-2" : "grid-cols-1"}`}>
+        {job.lastActivity && (
+          <div>
+            <p className="text-xs font-semibold tracking-[0.12em] text-charcoal-400 uppercase">Last activity</p>
+            <p className="mt-1 text-[15px] leading-snug text-charcoal-200">
+              {describeActivity({ type: job.lastActivity.type, actorName: job.lastActivity.actorName, details: { title: job.lastActivity.title }, names: {} }).title}
+            </p>
+            <p className="text-sm text-charcoal-400">{formatDateTime(job.lastActivity.at)}</p>
+          </div>
+        )}
+      </div>
+
+      <div className={`grid gap-3 ${links.step ? "grid-cols-2" : "grid-cols-1"}`}>
         <Link
           href={links.job}
-          className="flex min-h-14 items-center justify-center gap-1 rounded-2xl border border-gold-500/50 bg-charcoal-800 text-base font-semibold text-gold-200"
+          className="gold-gradient flex min-h-16 items-center justify-center gap-1 rounded-2xl text-lg font-semibold text-charcoal-950 shadow-md shadow-black/30 active:scale-[0.98]"
         >
           Open Job <ChevronRightIcon className="h-5 w-5" />
         </Link>
         {links.step && (
-          <Link href={links.step} className="flex min-h-14 items-center justify-center rounded-2xl bg-charcoal-800 text-base font-semibold text-white">
+          <Link
+            href={links.step}
+            className="flex min-h-16 items-center justify-center rounded-2xl border border-gold-500/50 bg-charcoal-800 text-lg font-semibold text-gold-100 active:scale-[0.98]"
+          >
             Current Step
           </Link>
         )}
