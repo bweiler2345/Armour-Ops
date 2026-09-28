@@ -1,5 +1,9 @@
 import { createServerClient } from "@supabase/ssr";
-import { NextResponse, type NextRequest } from "next/server";
+import type { NextRequest } from "next/server";
+// NextResponse from its own module: importing it from "next/server" also
+// bundles next/og image generation (about 1.4 MB of WebAssembly) into the
+// Cloudflare Worker, which this app never uses. Same class either way.
+import { NextResponse } from "next/dist/server/web/spec-extension/response";
 import { isPublicPath, SIGN_IN_PATH } from "@/lib/auth/routes";
 import { getSupabaseConfig } from "@/lib/supabase/config";
 import type { Database } from "@/lib/database.types";

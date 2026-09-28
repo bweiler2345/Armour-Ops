@@ -170,4 +170,10 @@ What exists:
 - The owner can join a job as an Owner/Working Member to work steps with full attribution; the employee lead stays the lead.
 - The owner can reopen a completed step with a reason. The earlier attempt and its proof are kept; the team redoes the step as a new attempt.
 
+**Phase 9: Owner Dashboard and job monitoring — built; waiting for live verification.** Setup steps are in `docs/SUPABASE_SETUP.md`, step 16.
+
+- The Owner Dashboard counts every category and lists jobs needing the owner first, then work in progress, upcoming, available, and recently completed jobs.
+- Cards show progress, the current step, the team (including Working Owners), the last activity, anyone editing, reopened work, and upload problems, with links to the job and current step.
+- Search and filters (client, address, category, person, dates) survive the automatic refresh and page reloads.
+
 Not built yet: skipping, reordering, and editing standard job steps; role changes on the Team screen; Weekly Setup checklists; and deployment. See the implementation plan for the order.

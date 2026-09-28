@@ -81,21 +81,6 @@ export function groupJobsForEmployee<T extends SectionJob>(
   });
 }
 
-// What needs the owner right now, for the Owner Dashboard: jobs waiting for
-// each installation, and jobs ready for Mark Job Complete. Oldest first.
-export function ownerAttention<T extends SectionJob>(jobs: readonly T[]) {
-  const oldest = (list: T[]) => [...list].sort((a, b) => byDate(a.lastActivityAt, b.lastActivityAt));
-  const waitingBase = oldest(jobs.filter((j) => j.status === "waiting_for_base_coat_installation"));
-  const waitingTop = oldest(jobs.filter((j) => j.status === "waiting_for_top_coat_installation"));
-  const readyToComplete = oldest(jobs.filter((j) => j.status !== "complete" && j.readyForOwnerCompletion === true));
-  return {
-    waitingBase,
-    waitingTop,
-    readyToComplete,
-    total: waitingBase.length + waitingTop.length + readyToComplete.length,
-  };
-}
-
 export type OwnerGroupKey =
   | "needs_owner"
   | "scheduled"

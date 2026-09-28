@@ -787,6 +787,53 @@ export type Database = {
       };
       complete_completion_item: { Args: { p_step: string }; Returns: "completed" | "already_completed" };
       mark_job_complete: { Args: { p_job: string }; Returns: "completed" | "already_complete" };
+      owner_dashboard: {
+        Args: Record<never, never>;
+        Returns: {
+          job_id: string;
+          job_number: number;
+          client_name: string;
+          address: string;
+          square_feet: number;
+          flake_color: string;
+          scheduled_date: string;
+          status: JobStatus;
+          last_activity_at: string;
+          completed_at: string | null;
+          total_units: number;
+          completed_units: number;
+          current_stage_name: string | null;
+          current_step_title: string | null;
+          ready_for_owner_completion: boolean;
+          reopened_step_title: string | null;
+          current_step_id: string | null;
+          team: Json;
+          working_owners: Json;
+          last_activity_type: JobActivityType | null;
+          last_activity_actor: string | null;
+          last_activity_title: string | null;
+          last_activity_time: string | null;
+          editor_name: string | null;
+          editor_step_title: string | null;
+          editor_expires_at: string | null;
+          unfinished_uploads: number;
+          failed_uploads: number;
+        }[];
+      };
+      owner_recent_activity: {
+        Args: { p_limit?: number };
+        Returns: {
+          id: number;
+          job_id: string;
+          job_number: number;
+          client_name: string;
+          activity_type: JobActivityType;
+          actor_name: string | null;
+          details: Json;
+          names: Json;
+          created_at: string;
+        }[];
+      };
       join_job_as_working_owner: { Args: { p_job: string }; Returns: "joined" | "already_joined" };
       leave_working_team: { Args: { p_job: string }; Returns: "left" | "not_joined" };
       reopen_step: { Args: { p_step: string; p_reason: string }; Returns: string };

@@ -368,3 +368,28 @@ You need the owner, two active test employees (A and B), one employee (C) not on
 20. While it's reopened: later unstarted steps are locked; if the job is waiting for an installation, the owner page says the reopened step must be redone first and hides the milestone button; Completion Work and Mark Job Complete wait. The job status doesn't move backward.
 21. As A, redo and complete the step. Everything unlocks again, and History shows the reopen and the new completion.
 22. As an employee, no Reopen button appears. On a complete job, no Reopen or custom-step controls appear.
+
+## 16. Phase 9: Owner Dashboard and job monitoring
+
+No Cloudflare or R2 changes are needed.
+
+### 16.1 Run the Phase 9 database update
+
+The Phase 8 files (step 15.1) must already have been run. In **SQL Editor**, run `supabase/migrations/20260927110000_owner_dashboard.sql` (new query, paste the whole file, **Run**). It should finish with "Success. No rows returned." Restart `npm run dev` afterwards.
+
+### 16.2 Try it
+
+Use a few fictional jobs in different states: one Scheduled, one Available, one being worked, one waiting for an installation, and one Complete. A phone and a computer are both useful.
+
+1. **Counts.** Open **Owner Dashboard**. The tiles at the top show All jobs, Needs you, In progress, Scheduled, Available to claim, and Recently completed, each with a count that matches the jobs you set up.
+2. **Order.** **Needs you** comes first (longest waiting first), then **In progress** (reopened work first, then most recent activity), **Scheduled** and **Available to claim** (soonest scheduled date first), and **Recently completed** (newest first, up to 10, with a link to all of them).
+3. **Cards.** Each card shows the job number, client, address, square footage, flake, scheduled date, and status. Jobs being worked also show the current stage and step, a progress bar with "done of total", the Lead, members, and any Working Owner ("Owner · Working Member"), and the last activity with who did it and when. **Open Job** and **Current Step** go straight there.
+4. **Waiting for owner.** A job waiting for an installation says "Waiting for owner: Mark Base Coat Installed" (or Top Coat). A job with everything done shows **Ready to Mark Complete** and "Review and Mark Job Complete".
+5. **Progress.** On a job with Baseboard off, the total doesn't include Baseboard Complete.
+6. **Editor.** As an employee on the phone, open a step for editing. Within about 20 seconds, without touching the computer, the card shows "(name) is editing "(step)" until about (time)". Leave the step; the line disappears on the next refresh.
+7. **Uploads.** Start a proof upload on the phone and put the phone in Airplane Mode. The card shows an upload in progress. An upload the server rejected, or one whose 24-hour upload window ended without finishing, is shown as a failed or unfinished upload to fix until someone removes it on the step screen.
+8. **Reopened work.** Reopen a completed step on an active job. Its card shows "Reopened: "(step)" needs redoing" and moves to the top of In progress; Current Step goes to the reopened step.
+9. **Recent activity.** The list at the bottom shows the newest history entries across all jobs, with who did what and when. Tapping one opens the job; the job's own History section is unchanged.
+10. **Search and filters.** Search part of a client name or address, choose a category tile, choose a person under **Anyone assigned** (Working Owners are included), and set From and To dates. Wait 30 seconds: the automatic refresh keeps your filters. Reload the page: the filters are still there. **Clear filters** resets them. A filter with no matches says so.
+11. **Out of date.** Turn off the computer's Wi-Fi for two minutes: the "Last updated" line warns that the page may be out of date. Turn it back on; it refreshes.
+12. **Owner only.** As an employee, visit `/owner`: you're sent to Jobs. Nothing on the dashboard shows an email address or a link to a file.

@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { employeeSectionFor, ownerAttention, ownerGroupFor, type SectionJob } from "./sections";
+import { employeeSectionFor, ownerGroupFor, type SectionJob } from "./sections";
 import { JOB_STATUS_LABELS, milestoneState, type JobStatus } from "./status";
 
 const ME = "11111111-1111-4111-8111-111111111111";
@@ -43,25 +43,7 @@ describe("job cards move between sections as the job advances", () => {
   });
 });
 
-describe("Owner Dashboard counts", () => {
-  it("counts jobs waiting for each installation and ready for Mark Job Complete, oldest first", () => {
-    const jobs = [
-      job("waiting_for_base_coat_installation", { id: "b2", lastActivityAt: "2026-10-22T00:00:00Z" }),
-      job("waiting_for_base_coat_installation", { id: "b1", lastActivityAt: "2026-10-21T00:00:00Z" }),
-      job("waiting_for_top_coat_installation", { id: "t1" }),
-      job("completion_work_in_progress", { id: "r1", readyForOwnerCompletion: true }),
-      job("completion_work_in_progress", { id: "w1" }),
-      job("initial_prep_in_progress", { id: "p1" }),
-      job("complete", { id: "c1" }),
-    ];
-    const attention = ownerAttention(jobs);
-    expect(attention.waitingBase.map((j) => j.id)).toEqual(["b1", "b2"]);
-    expect(attention.waitingTop.map((j) => j.id)).toEqual(["t1"]);
-    expect(attention.readyToComplete.map((j) => j.id)).toEqual(["r1"]);
-    expect(attention.total).toBe(4);
-    expect(ownerAttention([]).total).toBe(0);
-  });
-});
+// Owner Dashboard counts and ordering: src/lib/owner/dashboard.test.ts.
 
 describe("milestone states shown on the workflow map", () => {
   it("follow the job status", () => {
