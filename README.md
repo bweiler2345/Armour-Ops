@@ -174,7 +174,7 @@ What exists:
 - Cards show progress, the current step, the team (including Working Owners), the last activity, anyone editing, reopened work, and upload problems, with links to the job and current step.
 - Search and filters (client, address, category, person, dates) survive the automatic refresh and page reloads.
 
-**Phase 10: Pre-Week Setup and trailer inventory — built; waiting for live verification.** Setup steps are in `docs/SUPABASE_SETUP.md`, step 17.
+**Phase 10: Pre-Week Setup and trailer inventory — complete and verified against the live Supabase project.** The 48-item list, trailer management, calculated statuses and shortages, autosave across devices, submit and reopen with history, future-only target changes, Owner Dashboard shortages, and access rules were tested successfully. Setup steps are in `docs/SUPABASE_SETUP.md`, step 17.
 
 - Trailer 1 and Trailer 2 share the approved inventory list. Each week (Monday to Sunday, Central time) every trailer gets its own snapshot of the list.
 - Employees count usable items with large controls; the database calculates Ready, Need More, Missing, and the exact shortage. Rags use Ready, Need More, or Missing.
