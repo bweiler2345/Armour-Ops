@@ -1,8 +1,10 @@
 export const SIGN_IN_PATH = "/sign-in";
+// The health check answers without a session (it reveals nothing).
+export const HEALTH_PATH = "/api/health";
 
 // Routes reachable without a session. Everything else requires sign-in.
 export function isPublicPath(pathname: string) {
-  return pathname === SIGN_IN_PATH || pathname.startsWith("/auth/");
+  return pathname === SIGN_IN_PATH || pathname.startsWith("/auth/") || pathname === HEALTH_PATH;
 }
 
 // Only allow same-site relative paths after sign-in, so a crafted

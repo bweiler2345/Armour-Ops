@@ -25,6 +25,13 @@ const KNOWN_SECRETS = [
   "SUPABASE_SERVICE_ROLE_KEY",
   "R2_ACCESS_KEY_ID",
   "R2_SECRET_ACCESS_KEY",
+  // Deployment and backup credentials (GitHub Actions). None should ever be
+  // present during a build; if one is, it must not reach the output.
+  "CLOUDFLARE_API_TOKEN",
+  "SUPABASE_DB_URL",
+  "BACKUP_ENCRYPTION_KEY",
+  "R2_BACKUP_ACCESS_KEY_ID",
+  "R2_BACKUP_SECRET_ACCESS_KEY",
 ];
 
 if (!existsSync(envModulePath)) {

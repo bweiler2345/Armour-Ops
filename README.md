@@ -181,4 +181,9 @@ What exists:
 - Submitted weeks are read only; the owner can reopen one with a reason, and every submission is kept.
 - The owner manages trailers and the inventory list for future weeks, reviews each week and its history, and sees each trailer's state and combined shortages on the Owner Dashboard.
 
-Not built yet: skipping, reordering, and editing standard job steps; role changes on the Team screen; and deployment. See the implementation plan for the order.
+**Phase 11: production deployment and backups — built; waiting for account setup and production verification.** See `docs/DEPLOYMENT.md` and `docs/BACKUPS.md`.
+
+- GitHub Actions checks every change and deploys to Cloudflare Workers Free at a free `workers.dev` address when all checks pass.
+- Weekly encrypted database backups go to a private R2 bucket, keeping the newest 12.
+
+Not built yet: skipping, reordering, and editing standard job steps; role changes on the Team screen; scheduled media retention cleanup. See the implementation plan for the order.

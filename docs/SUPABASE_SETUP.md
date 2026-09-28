@@ -425,3 +425,11 @@ You need the owner, two active test employees (A and B), and a phone. Weeks run 
 9. Open the submitted trailer: every item shows its count, target, status, shortage, note, and who changed it and when, plus the submission. Select **Reopen**; the confirm button stays disabled until you enter a reason. Reopen. A can change counts and submit again; the page then lists both submissions and the reopening with its reason.
 10. **Future weeks only:** in **Inventory list**, change the target for Pencils. This week's checklists still show the old target; weeks started later use the new one. **History** lists every week for each trailer, and **All trailers** or a trailer name filters it.
 11. **Access:** as an employee, visiting `/owner/pre-week-setup` sends you to Jobs, and there are no owner controls. As the owner, the trailer checklist is read only (employees fill it in). No email addresses appear anywhere.
+
+## 18. Phase 11: Production and backups
+
+No new database migration. Production uses this same Supabase project (all migrations through step 17 must be installed).
+
+- **Deployment, Cloudflare secrets, the production R2 bucket and CORS, and Supabase URL settings:** `docs/DEPLOYMENT.md`, "One-time setup" steps 1 to 10, including read-only SQL checks for the live project.
+- **Weekly encrypted backups and a safe restore test:** `docs/BACKUPS.md`.
+- **Production verification checklist:** `docs/DEPLOYMENT.md`, last section.

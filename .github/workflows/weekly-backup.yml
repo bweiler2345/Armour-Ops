@@ -1,0 +1,52 @@
+# Weekly encrypted database backup to a private R2 bucket, keeping the newest
+# 12. Also runs on demand from the Actions tab ("Run workflow").
+# Secrets (Settings > Secrets and variables > Actions > Secrets):
+#   SUPABASE_DB_URL, BACKUP_ENCRYPTION_KEY, R2_BACKUP_ACCOUNT_ID,
+#   R2_BACKUP_ACCESS_KEY_ID, R2_BACKUP_SECRET_ACCESS_KEY, R2_BACKUP_BUCKET
+# See docs/BACKUPS.md. Nothing secret or from the database is printed.
+
+name: Weekly backup
+
+on:
+  schedule:
+    # Sundays at 09:00 UTC (early Sunday morning, Central time).
+    - cron: "0 9 * * 0"
+  workflow_dispatch:
+
+# Never two backups at once; a second run waits for the first.
+concurrency:
+  group: weekly-backup
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      # pg_dump must be at least as new as the Supabase Postgres server.
+      - name: Install PostgreSQL 17 client
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-common > /dev/null
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y > /dev/null
+          sudo apt-get install -y -qq postgresql-client-17 > /dev/null
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+
+      - name: Back up
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          BACKUP_ENCRYPTION_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
+          R2_BACKUP_ACCOUNT_ID: ${{ secrets.R2_BACKUP_ACCOUNT_ID }}
+          R2_BACKUP_ACCESS_KEY_ID: ${{ secrets.R2_BACKUP_ACCESS_KEY_ID }}
+          R2_BACKUP_SECRET_ACCESS_KEY: ${{ secrets.R2_BACKUP_SECRET_ACCESS_KEY }}
+          R2_BACKUP_BUCKET: ${{ secrets.R2_BACKUP_BUCKET }}
+        run: bash scripts/backup/backup.sh

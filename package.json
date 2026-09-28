@@ -11,7 +11,8 @@
     "test": "vitest run",
     "cf:build": "opennextjs-cloudflare build && node scripts/cf-protect-secrets.mjs",
     "cf:preview": "npm run cf:build && opennextjs-cloudflare preview",
-    "workflow:seed": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/generate-workflow-seed.mjs"
+    "workflow:seed": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/generate-workflow-seed.mjs",
+    "cf:size": "node scripts/check-worker-size.mjs"
   },
   "dependencies": {
     "@opennextjs/cloudflare": "^1.20.6",
