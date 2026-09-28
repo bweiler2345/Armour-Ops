@@ -11,7 +11,7 @@ Its purposes are to:
 3. Require verification, pictures, videos, or notes at important steps.
 4. Allow the owner to monitor job progress remotely.
 5. Separate employee preparation work from owner-controlled coating installations.
-6. Provide a Weekly Setup section for trailer inventory checks.
+6. Provide a Pre-Week Setup section for trailer inventory checks.
 
 The interface must remain clean, visual, and touch-friendly for employees using iPhones, including employees wearing work gloves.
 
@@ -40,7 +40,7 @@ The owner can:
 - Review a job and select Mark Job Complete.
 - Monitor live job progress.
 - See jobs waiting for an installation or for Mark Job Complete on the Owner Dashboard.
-- View Weekly Setup submissions and trailer shortages.
+- View Pre-Week Setup submissions and trailer shortages.
 - Manage employee accounts on the Team screen.
 
 ### Employee
@@ -58,7 +58,7 @@ Employees can:
 - Upload required pictures or videos.
 - Enter required notes or quantities.
 - Check Caulking Complete and Baseboard Complete when applicable.
-- Complete Weekly Setup trailer checks.
+- Complete Pre-Week Setup trailer checks.
 
 When something goes wrong on a job, employees text or call the owner. In-app problem reporting is a future feature.
 
@@ -767,11 +767,11 @@ For the first version:
 - Only the owner can select “Mark Job Complete.”
 - Before completing a job, the owner can review its completed steps, evidence, completion items, and activity history.
 
-# Weekly Setup
+# Pre-Week Setup
 
-The navigation label is “Weekly Setup,” not “Monday Check.”
+The feature and its navigation label are “Pre-Week Setup,” never “Monday Check.”
 
-Weekly Setup contains one inventory checklist for each trailer. Both trailers use the same inventory list.
+Pre-Week Setup contains one inventory checklist for each trailer, completed each week before the week's work. It starts with two trailers, “Trailer 1” and “Trailer 2”. The owner can rename trailers later. Both trailers use the identical approved inventory list.
 
 Each submission records:
 
@@ -809,9 +809,9 @@ The status is calculated automatically from the count. Employees do not choose i
 
 For items without a practical numeric quantity, such as “Rags stocked,” the employee selects Ready, Missing, or Need More and can add a note.
 
-The target quantity for each item is the number in its name in the list below (for example, “Two full fuel cans” has a target of 2). Items listed without a number have a target of 1. “Rags stocked” has no numeric target.
+The target quantity for each item is the number in its name in the list below (for example, “Two full fuel cans” has a target of 2). Items listed without a number have a target of 1, including the full plywood sheet and the quarter-board piece. “Rags stocked” has no numeric target: the employee selects Ready, Need More, or Missing, and no numeric shortage is shown.
 
-Every submission keeps its historical counts so Weekly Setup can later grow into a fuller inventory-tracking system.
+Every submission keeps its historical counts, and each week keeps the item labels and targets it was checked against. The owner can adjust targets for future weeks; past submissions never change. This history can support fuller inventory tracking later. Automatic purchasing and automatic inventory depletion are not part of Pre-Week Setup.
 
 ## Required inventory for each trailer
 
@@ -843,7 +843,9 @@ Every submission keeps its historical counts so Weekly Setup can later grow into
 - Two utility knives
 - Extra-soft bit set
 - Medium bit set
-- Plywood
+- Plywood, as two separate requirements:
+  - 1 full plywood sheet
+  - 1 quarter-board piece
 
 ### Mixing and application
 
@@ -898,4 +900,5 @@ Do not implement these until specifically requested:
 - Automated account invitation emails
 - Email password recovery (employees resetting a forgotten password themselves by email)
 - Archive and export of job pictures, videos, and records
-- Fuller inventory tracking built on Weekly Setup history, such as usage trends and restocking lists
+- Fuller inventory tracking built on Pre-Week Setup history, such as usage trends and restocking lists
+- Automatic purchasing and automatic inventory depletion

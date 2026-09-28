@@ -15,7 +15,7 @@ No application code, dependencies, external services, or UI have been changed as
 7. [Workflow behavior](#4-workflow-behavior)
 8. [Media uploads (Cloudflare R2)](#5-media-uploads-cloudflare-r2)
 9. [Owner notifications](#6-owner-notifications)
-10. [Weekly Setup](#7-weekly-setup)
+10. [Pre-Week Setup](#7-pre-week-setup)
 11. [Build phases](#8-build-phases)
 12. [Deferred from version one](#9-deferred-from-version-one)
 13. [Decisions still required](#10-decisions-still-required)
@@ -29,8 +29,8 @@ Also: [Database backups](#database-backups) (in section 6).
 The current repository is a visual shell only:
 
 - Next.js 16.3 (App Router, `src/` directory, `@/*` alias), React 19.2, TypeScript, Tailwind CSS v4, ESLint.
-- `src/app/layout.tsx` renders `AppHeader`, the page, and `BottomNav` (Jobs, Weekly Setup, Account).
-- `src/app/jobs`, `src/app/weekly-setup`, and `src/app/account` render fictional data from `src/lib/mock-data.ts`.
+- `src/app/layout.tsx` renders `AppHeader`, the page, and `BottomNav` (Jobs, Pre-Week Setup, Account).
+- `src/app/jobs`, `src/app/pre-week-setup`, and `src/app/account` render fictional data from `src/lib/mock-data.ts`.
 - `JobCard`, `PageHeading`, and `Icons` are reusable presentational components.
 - The palette (charcoal and muted gold) is defined in `src/app/globals.css` as Tailwind theme tokens.
 - `.gitignore` already excludes `.env*` files except `.env.example`.
@@ -113,8 +113,8 @@ OpenNext copies every variable from the `.env*` files into the Worker bundle. `n
 
 | Role | Stored as | Summary |
 | --- | --- | --- |
-| Owner/Admin | `profiles.role = 'owner'` | Full read access, and management of jobs, teams, steps, milestones, the Custom Step Library, reference pictures, Weekly Setup submissions, and the Team screen. Changes employee step work (checks, entries, proof, Complete Step) only after joining the job as an Owner/Working Member (Phase 8). More than one owner account is supported. |
-| Employee | `profiles.role = 'employee'` | Read-only access to every job visible to employees. Full working access to jobs they are assigned to. Submits Weekly Setup checks. |
+| Owner/Admin | `profiles.role = 'owner'` | Full read access, and management of jobs, teams, steps, milestones, the Custom Step Library, reference pictures, Pre-Week Setup submissions, and the Team screen. Changes employee step work (checks, entries, proof, Complete Step) only after joining the job as an Owner/Working Member (Phase 8). More than one owner account is supported. |
+| Employee | `profiles.role = 'employee'` | Read-only access to every job visible to employees. Full working access to jobs they are assigned to. Submits Pre-Week Setup checks. |
 
 ### Authentication
 
@@ -186,7 +186,7 @@ RLS is enabled on every table. `security definer` helper functions (with `search
 | Job activity | All | For every job they can read |
 | Workflow templates | All | None needed (jobs carry their own snapshot) |
 | Trailers, inventory items | All | All active |
-| Weekly Setup submissions and results | All | All submitted, plus their own drafts |
+| Pre-Week Setup submissions and results | All | All submitted, plus their own drafts |
 
 **Write access:**
 
@@ -195,8 +195,8 @@ RLS is enabled on every table. `security definer` helper functions (with `search
 - **Team functions:** `claim_job` and `join_job` (employees, under the rules in [Job teams](#job-teams-and-atomic-claiming)).
 - **Owner functions** start with an `is_owner()` check: `create_job`, `edit_job`, `make_available`, `return_to_scheduled`, `set_allow_join`, `add_team_member`, `remove_team_member`, `change_lead`, `mark_milestone_installed`, `mark_job_complete`, `reopen_step`, `skip_step`, `add_custom_step`, `remove_step`, `reorder_steps`, `edit_step`, `clear_step_edit`.
 - Owner installation milestones can **only** be completed through `mark_milestone_installed`. No employee path can mark Base Coat Installed or Top Coat Installed.
-- `job_activity`, completed step attempts, removed assignments, and submitted Weekly Setup results are append-only. There is no `update` or `delete` path for them. Corrections happen by reopening, which adds records.
-- Weekly Setup writes go through `save_weekly_setup_draft` and `submit_weekly_setup`, available to any active user.
+- `job_activity`, completed step attempts, removed assignments, and submitted Pre-Week Setup results are append-only. There is no `update` or `delete` path for them. Corrections happen by reopening, which adds records.
+- Pre-Week Setup writes go through `save_weekly_setup_draft` and `submit_weekly_setup`, available to any active user.
 
 ### Timestamps
 
@@ -341,9 +341,9 @@ Reference pictures for steps are separate from proof: their own records, their o
 
 There is no notifications table: owner notifications are in-app status, badges, and the Owner Dashboard (approved owner decision).
 
-#### Weekly Setup
+#### Pre-Week Setup
 
-See [Weekly Setup](#7-weekly-setup) for the behavior.
+See [Pre-Week Setup](#7-pre-week-setup) for the behavior.
 
 **`trailers`**
 `id`, `name`, `active bool`, `position`. Seeded with two generic names ("Trailer 1", "Trailer 2"). The owner can rename them.
@@ -426,19 +426,19 @@ All routes are under `src/app`. Route groups keep layouts separate without affec
 | `/account` | Name, role, and a working Sign Out. |
 | `/media/[mediaId]` | Route Handler. Checks access and redirects to a short-lived R2 viewing link (see [Media](#5-media-uploads-cloudflare-r2)). |
 
-### Employee (`(employee)` route group, bottom nav: Jobs, Weekly Setup, Account)
+### Employee (`(employee)` route group, bottom nav: Jobs, Pre-Week Setup, Account)
 
 | Route | Screen |
 | --- | --- |
 | `/jobs` | **Employee Jobs**, in five sections: **My Current Jobs** (every job they are assigned to that is not complete), **Other Active Jobs** (in-progress jobs they are not on, read-only, with **Join** when allowed), **Available Jobs** (with **Claim Job**), **Scheduled Jobs** (read-only, no Claim or Join), and **Completed Jobs**. Job cards show client name, address, square footage, flake color, scheduled date, lead and assigned employees, status, current step, progress, and last activity time. |
 | `/jobs/[jobId]` | **Job details and stage overview.** Job information, general notes, the team (lead marked), and each stage with per-step state. Assigned employees get **Continue**. Unassigned employees see the same content read-only with **Claim Job**, **Join Job**, or "Ask the owner to add you", depending on status and the join setting. Scheduled jobs show "Not available yet" with no Claim or Join. Owner milestones appear as waiting or installed, with no installation instructions. Completion Work shows the applicable checkboxes to assigned employees. |
 | `/jobs/[jobId]/steps/[stepId]` | **Step details.** Title, goal, reference image, instructions, reference lists, Final check, structured inputs, proof slots with upload progress, employee notes, the confirmation statement, and **Complete Step**. Shows "Being edited by [name]" when another employee holds the edit. Completed steps open read-only with who completed them, when, and their evidence. Unassigned employees always get the read-only view. |
-| `/weekly-setup` | **Weekly Setup.** Both trailer cards with their latest status and shortage count. |
-| `/weekly-setup/[trailerId]` | **Trailer inventory.** The shared list grouped by category (see [Weekly Setup](#7-weekly-setup)). |
+| `/pre-week-setup` | **Pre-Week Setup.** Both trailer cards with their latest status and shortage count. |
+| `/pre-week-setup/[trailerId]` | **Trailer inventory.** The shared list grouped by category (see [Pre-Week Setup](#7-pre-week-setup)). |
 
 Claiming and joining are actions on `/jobs` and `/jobs/[jobId]`, not separate pages. Evidence upload happens inline on the step screen.
 
-### Owner (`/owner`, owner layout with nav: Dashboard, Jobs, Weekly Setup, Team, Account)
+### Owner (`/owner`, owner layout with nav: Dashboard, Jobs, Pre-Week Setup, Team, Account)
 
 | Route | Screen |
 | --- | --- |
@@ -449,8 +449,8 @@ Claiming and joining are actions on `/jobs` and `/jobs/[jobId]`, not separate pa
 | `/owner/jobs/[jobId]/steps/new` | **Custom step editor.** Step name, stage, position, instructions, optional reference picture, optional checklist, required proof type (none, picture, or video), structured inputs, and final confirmation text. The same form edits existing steps. |
 | `/owner/jobs/[jobId]/steps/[stepId]` | All attempts of one step, including superseded ones, with responses, media, notes, who did what, and timestamps. Reopen, skip, edit, and clear-edit-hold actions. |
 | `/owner/team` | **Team screen** (see [Team screen and temporary passwords](#team-screen-and-temporary-passwords)). |
-| `/owner/weekly-setup` | Current condition of both trailers and submission history. |
-| `/owner/weekly-setup/[submissionId]` | One submission in full. |
+| `/owner/pre-week-setup` | Current condition of both trailers and submission history. |
+| `/owner/pre-week-setup/[submissionId]` | One submission in full. |
 
 Owners can also open employee routes to see exactly what employees see.
 
@@ -667,15 +667,16 @@ The approved limits and formats are in the spec's [Pictures and videos](./PRODUC
 
 ---
 
-## 7. Weekly Setup
+## 7. Pre-Week Setup
 
 ### Inventory list and targets
 
+- **Approved decisions (2026-09-27):** the feature is "Pre-Week Setup", never "Monday Check". It starts with Trailer 1 and Trailer 2; the owner can rename trailers later. The inventory list is identical for both trailers. Numeric items have targets; employees enter the current usable quantity; the app calculates Ready (usable meets or exceeds target), Missing (usable is zero), Need More (above zero but below target), and the exact shortage (target minus usable). Rags use a manual Ready, Need More, or Missing with no quantity. Plywood is two requirements: 1 full plywood sheet and 1 quarter-board piece. Each week keeps its own labels, targets, and counts. The owner can adjust targets for future weeks without changing past submissions. The history may support fuller inventory tracking later; automatic purchasing and inventory depletion are not part of this phase.
 - Both trailers use the same list from the spec, seeded word for word into `inventory_items` with its four categories.
 - Each item's target is the number in its name ("Thirty 3-inch brushes" has target 30 and unit label "brushes"). Items without a number have target 1. "Rags stocked" is `status_only`.
 - The seeded targets are shown to the owner for confirmation in Phase 10 before the feature is used.
 
-### Employee flow (`/weekly-setup/[trailerId]`)
+### Employee flow (`/pre-week-setup/[trailerId]`)
 
 - The list is grouped by category. Each count item shows its label and target (for example "Target: 30 brushes"), and a large number field with − and + buttons for the **usable quantity on hand**.
 - As soon as a count is entered, the item shows its calculated status: **Ready**, **Missing**, or **Need More** with the shortage, for example "Need 18 More". There is no manual status control for count items.
@@ -684,7 +685,7 @@ The approved limits and formats are in the spec's [Pictures and videos](./PRODUC
 - Restock notes for the whole trailer go at the bottom.
 - Progress autosaves as a draft. **Submit** is enabled once every item has a count or a selection. Submission records the employee and the database time.
 
-### Owner review (`/owner/weekly-setup`)
+### Owner review (`/owner/pre-week-setup`)
 
 - One card per trailer: last checked by and when, counts of Ready, Need More, and Missing items, then a list of every Missing and Need More item with its shortage and note, plus the restock notes.
 - The dashboard shows a trailer shortage summary.
@@ -693,7 +694,7 @@ The approved limits and formats are in the spec's [Pictures and videos](./PRODUC
 ### History for future inventory tracking
 
 - Each result row keeps its own copy of the item label, category, target, and unit at the time of the check, plus the usable count, status, shortage, and note. Past submissions therefore never change, even if the list or targets are edited later.
-- This history supports later features such as usage trends per item, combined restock lists across both trailers, owner-editable targets, and per-trailer lists. These are future features and are not built in version one.
+- Owner-editable targets, labels, categories, and units (for future weeks only) are part of Phase 10. Later features could use the history for usage trends per item; automatic purchasing and inventory depletion are not planned for version one.
 
 ---
 
@@ -867,7 +868,7 @@ Each phase ends with lint, a production build, its listed tests, and a check on 
 
 ### Phase 9: Owner dashboard and live monitoring
 
-- **Features:** Dashboard groups, jobs with no team assigned, trailer shortage summary (after Weekly Setup), and live updates (built with automatic refresh instead of Supabase Realtime; see Status).
+- **Features:** Dashboard groups, jobs with no team assigned, trailer shortage summary (after Pre-Week Setup), and live updates (built with automatic refresh instead of Supabase Realtime; see Status).
 - **Files or areas:** `src/app/owner/page.tsx`, dashboard components, browser Supabase client.
 - **Testing:** Two devices: an employee completes a step and the owner dashboard updates without reloading.
 - **Confirm before moving on:** The owner is happy with what the dashboard shows at a glance.
@@ -875,18 +876,18 @@ Each phase ends with lint, a production build, its listed tests, and a check on 
   - **Database** (`20260927110000_owner_dashboard.sql`): owner-only `owner_dashboard()` returns one row per job in a single round trip: job details, applicable progress (Not Applicable Completion Work isn't counted), current stage and step with the step to open (a reopened step first; none while the job waits for the owner), Ready to Mark Complete, the reopened step, the Lead and members, active Working Owners, the last history entry with who did it and its database time, the current editor and lease expiry, and unfinished or failed uploads on work in progress. `owner_recent_activity()` returns the newest history entries across jobs with names. Both require an active owner and return names only. A new index supports the recent-activity order.
   - **Screen:** the Owner Dashboard shows tiles with counts for every category, then Needs you (longest waiting first), In progress (reopened work first, then most recent activity), Scheduled and Available (soonest date first), and Recently completed (newest 10, with a link to all), each with an empty message. Cards show everything above with Open Job and Current Step links. Search (client, address, job number), category, assigned person (including Working Owners), and scheduled date range filters live in the page and the address bar, so refreshes and reloads keep them. The page refreshes every 20 seconds while visible and when the app returns to the foreground, flags data older than 90 seconds, and has a loading state. History wording is shared with the job page's History, which is unchanged.
   - **Live-test fix (card hierarchy):** owner feedback asked for the client name to lead. Dashboard cards and the recent activity list no longer show job numbers (still searchable); the client name is the largest text, the address is the clear second line, and cards are larger with more padding, a stronger border, and more space between them. On wide screens (1024 px and up) only the dashboard widens beyond the phone column, showing two cards side by side with details in two columns. Open Job and Current Step stay large buttons.
-  - **Interpretation choices:** live updates use the existing lightweight refresh instead of Supabase Realtime (no WebSocket or new package, per the owner's Phase 9 instructions); an employee's saved work appears on the dashboard within about 20 seconds. The trailer shortage summary waits for Weekly Setup (Phase 10). "Jobs with no team assigned" appear as a note on in-progress cards without a Lead. The owner job page (workflow map, milestone buttons, History) remains the owner review view.
+  - **Interpretation choices:** live updates use the existing lightweight refresh instead of Supabase Realtime (no WebSocket or new package, per the owner's Phase 9 instructions); an employee's saved work appears on the dashboard within about 20 seconds. The trailer shortage summary waits for Pre-Week Setup (Phase 10). "Jobs with no team assigned" appear as a note on in-progress cards without a Lead. The owner job page (workflow map, milestone buttons, History) remains the owner review view.
   - **Worker size:** `src/lib/supabase/proxy.ts` now imports `NextResponse` from its own module instead of `next/server`, whose `ImageResponse` export pulled `next/og` image generation into the middleware bundle. Same class and behavior (redirects checked on a local Worker preview). This cut the compressed Worker from 2,910.10 KiB to 2,550.65 KiB. OpenNext still adds a smaller `next/og` path of its own to the middleware bundle; removing it would mean editing build output, so it was left.
   - **Tests:** 12 new database tests (every field, owner-only access, no emails or file keys, editor expiry, uploads, reopened steps, Working Owners, recent activity, and a realistic number of jobs) and unit tests for categories, labels, ordering, filters, filter persistence, row mapping, links, and history wording.
 
-### Phase 10: Weekly Setup
+### Phase 10: Pre-Week Setup
 
 - **Features:** Trailers and the shared inventory list seeded from the spec with targets, units, and tracking type. The trailer inventory screen with usable-quantity entry, automatic status and shortage, status-only items, notes, restock notes, draft autosave, and submission. The owner's current-condition and history views.
-- **Files or areas:** migrations, `src/lib/inventory/`, `src/lib/actions/weekly-setup.ts`, `src/app/(employee)/weekly-setup/*`, `src/app/owner/weekly-setup/*`.
+- **Files or areas:** migrations, `src/lib/inventory/`, `src/lib/actions/pre-week-setup.ts`, `src/app/(employee)/pre-week-setup/*`, `src/app/owner/pre-week-setup/*`.
 - **Testing:** Unit tests: usable 0 gives Missing; 12 of 30 gives Need More with "Need 18 More"; 30 and 31 of 30 give Ready. Database tests: a count item's status and shortage cannot be set by hand; status-only items accept a selection; submitted results cannot be edited; editing an inventory item does not change past submissions. A seed test against the spec's list. A submission on iPhone with gloves for each trailer, then owner review.
 - **Confirm before moving on:** The owner confirms the seeded targets and that shortages are easy to see.
 
-This phase is independent of the job workflow and can move earlier if the owner wants Weekly Setup sooner.
+This phase is independent of the job workflow and can move earlier if the owner wants Pre-Week Setup sooner.
 
 ### Phase 11: Hardening, scheduled jobs, and deployment (only when approved)
 
@@ -904,7 +905,7 @@ These are in the spec's Future functionality list and are **not** built in versi
 - Text message and phone push notifications.
 - Automated account invitation emails and email password recovery. When built later, these will add an email provider as Supabase custom SMTP, `/auth/confirm` and `/auth/set-password` routes, and a "Forgot password" link on sign-in. Until then, the owner issues temporary passwords from the Team screen.
 - Archive and export of job media and records before the five-year deletion.
-- Fuller inventory tracking built on Weekly Setup history.
+- Fuller inventory tracking built on Pre-Week Setup history.
 - Offline workflow synchronization (the design already uses client-generated IDs and database timestamps to prepare for it).
 - Detailed caulking and baseboard modules, payroll, Builder Prime integration, automatic scheduling, customer access, and App Store distribution.
 
