@@ -66,13 +66,32 @@ describe("deployment workflow", () => {
   });
 
   it("runs every check before deploying, and keeps deploy secrets out of the build", () => {
-    const steps = ["npm ci", "npm run lint", "npm run typecheck", "npm test", "npm run build", "npm run cf:build", "npm run cf:size", "npx wrangler deploy"];
+    const steps = ["npm ci", "npm run lint", "npm run typecheck", "npm test", "npm run build", "npm run cf:build", "npm run cf:size", "npx opennextjs-cloudflare deploy"];
     const positions = steps.map((s) => workflow.indexOf(s));
     expect(positions.every((p) => p > 0)).toBe(true);
     expect([...positions].sort((a, b) => a - b)).toEqual(positions);
     expect(workflow.indexOf("CLOUDFLARE_API_TOKEN: ${{ secrets")).toBeGreaterThan(workflow.indexOf("npm run cf:size"));
     // The app's runtime secrets live only in Cloudflare, never in this workflow.
     expect(workflow).not.toMatch(/secrets\.(SUPABASE_SECRET_KEY|R2_)/);
+  });
+
+  it("deploys the OpenNext build with arguments that survive OpenNext's unquoted shell", () => {
+    const commands = workflow
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => /^npx (wrangler|opennextjs-cloudflare) deploy\b/.test(line));
+    expect(commands).toEqual([expect.stringMatching(/^npx opennextjs-cloudflare deploy\b/)]);
+    // OpenNext joins arguments into a shell command without quoting them, so a
+    // quoted value with a space (the earlier `--message "commit <sha>"`) splits,
+    // and the commit SHA became Wrangler's entry point. Each argument must be
+    // one unquoted token with no spaces and no shell metacharacters.
+    const args = commands[0].replace(/^npx opennextjs-cloudflare deploy/, "").trim().split(/\s+/).filter(Boolean);
+    for (const arg of args) {
+      expect(arg, arg).toMatch(/^--[a-z-]+(=[\w.:${}-]+)?$/);
+      expect(arg, arg).not.toMatch(/["' ]/);
+    }
+    // No positional argument (Wrangler would read it as the entry point).
+    expect(args.every((arg) => arg.startsWith("--"))).toBe(true);
   });
 });
 

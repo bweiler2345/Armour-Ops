@@ -78,7 +78,10 @@ jobs:
             echo "::notice::Deployment skipped: the Cloudflare secrets or Supabase variables aren't set up yet (docs/DEPLOYMENT.md)."
             exit 0
           fi
-          npx wrangler deploy --message "commit ${GITHUB_SHA::7}"
+          # OpenNext re-runs Wrangler through a shell without quoting, so every
+          # argument must be a single token: "--message=commit abc" would split
+          # and "abc" would be taken as the entry point. The value is hex only.
+          npx opennextjs-cloudflare deploy --message=commit-${GITHUB_SHA::7}
 
       - name: Health check
         if: github.ref == 'refs/heads/main'
