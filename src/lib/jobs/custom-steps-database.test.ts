@@ -697,6 +697,60 @@ describe("Owner/Working Member", () => {
   });
 });
 
+describe("Working Owner on job-team displays", () => {
+  const ownerRows = (viewer: string, job: string) =>
+    as(db, { userId: viewer }, () =>
+      rows(`select owner_id, full_name, owner_active from public.job_working_owner_status where job_id = $1`, [job]),
+    );
+  const teamRows = (viewer: string, job: string) =>
+    as(db, { userId: viewer }, () =>
+      rows(`select employee_id, role from public.job_team where job_id = $1 order by role`, [job]),
+    );
+
+  it("shows the joined owner to the owner, the team, and unassigned employees alike, with names only", async () => {
+    const job = await newJob();
+    await call(owner, "join_job_as_working_owner", job);
+    const [{ full_name: name }] = await rows<{ full_name: string }>(`select full_name from public.profiles where id = $1`, [owner]);
+    const expected = [{ owner_id: owner, full_name: name, owner_active: true }];
+    for (const viewer of [owner, a, b, outsider]) {
+      expect(await ownerRows(viewer, job)).toEqual(expected);
+      // The employee lead stays the lead, and the owner is never an employee team row.
+      expect(await teamRows(viewer, job)).toEqual([
+        { employee_id: a, role: "lead" },
+        { employee_id: b, role: "member" },
+      ]);
+    }
+    const columns = await rows<{ column_name: string }>(
+      `select column_name from information_schema.columns where table_schema = 'public' and table_name = 'job_working_owner_status'`,
+    );
+    expect(columns.map((c) => c.column_name).sort()).toEqual(["full_name", "job_id", "joined_at", "owner_active", "owner_id"]);
+    expect(JSON.stringify(await ownerRows(outsider, job))).not.toMatch(/@/);
+    await expect(as(db, "anon", () => rows(`select * from public.job_working_owner_status`))).rejects.toThrow(/permission denied/);
+  });
+
+  it("removes the active display when the owner leaves, keeping the membership history", async () => {
+    const job = await newJob();
+    await call(owner, "join_job_as_working_owner", job);
+    await call(owner, "leave_working_team", job);
+    expect(await ownerRows(a, job)).toEqual([]);
+    expect(await ownerRows(owner, job)).toEqual([]);
+    expect(
+      await rows(`select owner_id, left_at is not null as ended from public.job_working_owners where job_id = $1`, [job]),
+    ).toEqual([{ owner_id: owner, ended: true }]);
+    expect((await history(job, "owner_joined_working_team")).length).toBe(1);
+    expect((await history(job, "owner_left_working_team")).length).toBe(1);
+  });
+
+  it("marks a deactivated working owner, who can no longer work steps", async () => {
+    const job = await newJob();
+    const second = await createUser(db, { role: "owner" });
+    await call(second, "join_job_as_working_owner", job);
+    await rows(`update public.profiles set active = false where id = $1`, [second]);
+    expect(await ownerRows(a, job)).toMatchObject([{ owner_id: second, owner_active: false }]);
+    expect(await rows<{ w: boolean }>(`select public.is_job_worker($1, $2) as w`, [job, second])).toEqual([{ w: false }]);
+  });
+});
+
 describe("reopening", () => {
   async function completedCustomStep(definition = SAND_STAIRS) {
     const job = await newJob();

@@ -324,7 +324,9 @@ No Cloudflare R2 changes are needed. Reference pictures use the same private buc
 
 ### 15.1 Run the Phase 8 database update
 
-The Phase 7 file (step 14.1) must already have been run. In **SQL Editor**, run `supabase/migrations/20260927090000_custom_steps_references_reopening.sql` (new query, paste the whole file, **Run**). It should finish with "Success. No rows returned." Restart `npm run dev` afterwards.
+The Phase 7 file (step 14.1) must already have been run. In **SQL Editor**, run `supabase/migrations/20260927090000_custom_steps_references_reopening.sql` (new query, paste the whole file, **Run**). It should finish with "Success. No rows returned."
+
+Then run `supabase/migrations/20260927100000_working_owner_display.sql` the same way (a live-test fix: it lets every team display show Working Owners, and marks a deactivated one). Restart `npm run dev` afterwards.
 
 ### 15.2 Try it
 

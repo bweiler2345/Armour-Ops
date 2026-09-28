@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/database.types";
 import { isUuid } from "./errors";
 import { JOB_STATUS_LABELS, type JobStatus } from "./status";
-import { sortTeam, teamLabel, type TeamMember } from "./team";
+import { sortTeam, teamNamesWithOwners, type TeamMember, type WorkingOwner } from "./team";
 
 // Reads jobs with the signed-in user's own session, so Row Level Security
 // decides what is visible. Callers must run requireUser() or requireOwner()
@@ -12,6 +12,11 @@ import { sortTeam, teamLabel, type TeamMember } from "./team";
 type JobRow = Database["public"]["Tables"]["jobs"]["Row"];
 type ProgressRow = Database["public"]["Views"]["job_progress"]["Row"];
 type TeamRow = Database["public"]["Views"]["job_team"]["Row"];
+type WorkingOwnerRow = Database["public"]["Views"]["job_working_owner_status"]["Row"];
+
+function toWorkingOwners(rows: readonly WorkingOwnerRow[]): WorkingOwner[] {
+  return rows.map((row) => ({ ownerId: row.owner_id, name: row.full_name.trim() || "Owner", active: row.owner_active }));
+}
 
 function toTeam(rows: readonly TeamRow[]): TeamMember[] {
   return sortTeam(
@@ -36,7 +41,10 @@ export type JobCardData = {
   statusLabel: string;
   team: TeamMember[];
   teamIds: string[];
-  // Lead first, marked "(Lead)".
+  // Owners on the working team (never the lead or members).
+  workingOwners: WorkingOwner[];
+  // Lead first, marked "(Lead)", then members, then working owners marked
+  // "(Owner · Working Member)".
   teamNames: string[];
   currentStageName: string | null;
   currentStepTitle: string | null;
@@ -54,8 +62,10 @@ export function toJobCard(
   job: JobRow,
   progress: ProgressRow | undefined,
   teamRows: readonly TeamRow[] = [],
+  ownerRows: readonly WorkingOwnerRow[] = [],
 ): JobCardData {
   const team = toTeam(teamRows);
+  const workingOwners = toWorkingOwners(ownerRows);
   const total = progress?.total_units ?? 0;
   const completed = progress?.completed_units ?? 0;
   return {
@@ -70,7 +80,8 @@ export function toJobCard(
     statusLabel: JOB_STATUS_LABELS[job.status],
     team,
     teamIds: team.map((m) => m.employeeId),
-    teamNames: team.map(teamLabel),
+    workingOwners,
+    teamNames: teamNamesWithOwners(team, workingOwners),
     currentStageName: progress?.current_stage_name ?? null,
     currentStepTitle: progress?.current_step_title ?? null,
     progress: {
@@ -91,12 +102,13 @@ export async function listJobCards(): Promise<
   const supabase = await createClient();
   if (!supabase) return { status: "error" };
 
-  const [jobs, progress, teams] = await Promise.all([
+  const [jobs, progress, teams, owners] = await Promise.all([
     supabase.from("jobs").select("*").order("scheduled_date"),
     supabase.from("job_progress").select("*"),
     supabase.from("job_team").select("*"),
+    supabase.from("job_working_owner_status").select("*"),
   ]);
-  if (jobs.error || progress.error || teams.error) return { status: "error" };
+  if (jobs.error || progress.error || teams.error || owners.error) return { status: "error" };
 
   const progressByJob = new Map((progress.data ?? []).map((p) => [p.job_id, p]));
   const teamsByJob = new Map<string, TeamRow[]>();
@@ -106,7 +118,12 @@ export async function listJobCards(): Promise<
   return {
     status: "ok",
     jobs: (jobs.data ?? []).map((job) =>
-      toJobCard(job, progressByJob.get(job.id), teamsByJob.get(job.id)),
+      toJobCard(
+        job,
+        progressByJob.get(job.id),
+        teamsByJob.get(job.id),
+        (owners.data ?? []).filter((o) => o.job_id === job.id),
+      ),
     ),
   };
 }
@@ -131,7 +148,7 @@ export type JobDetail = {
   // Installed milestones by stage key, with who marked them and when.
   milestones: Record<string, { installedByName: string | null; installedAt: string }>;
   // Owners on the working team (not the employee lead or members).
-  workingOwners: { ownerId: string; name: string }[];
+  workingOwners: WorkingOwner[];
 };
 
 export async function getJobDetail(
@@ -148,7 +165,7 @@ export async function getJobDetail(
     supabase.from("job_steps").select("*").eq("job_id", jobId).order("position"),
     supabase.from("job_team").select("*").eq("job_id", jobId),
     supabase.from("job_milestone_status").select("*").eq("job_id", jobId),
-    supabase.from("job_working_owner_status").select("owner_id, full_name").eq("job_id", jobId),
+    supabase.from("job_working_owner_status").select("*").eq("job_id", jobId),
   ]);
   if (job.error || progress.error || stages.error || steps.error || team.error || milestones.error || working.error) {
     return { status: "error" };
@@ -159,7 +176,7 @@ export async function getJobDetail(
     status: "ok",
     detail: {
       job: job.data,
-      card: toJobCard(job.data, progress.data ?? undefined, team.data ?? []),
+      card: toJobCard(job.data, progress.data ?? undefined, team.data ?? [], working.data ?? []),
       stages: (stages.data ?? []).map((stage) => ({
         id: stage.id,
         key: stage.key,
@@ -180,7 +197,7 @@ export async function getJobDetail(
                 : ("one_time" as const),
           })),
       })),
-      workingOwners: (working.data ?? []).map((w) => ({ ownerId: w.owner_id, name: w.full_name.trim() || "Owner" })),
+      workingOwners: toWorkingOwners(working.data ?? []),
       milestones: Object.fromEntries(
         (milestones.data ?? []).map((m) => [
           m.milestone_key,

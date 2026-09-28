@@ -606,7 +606,7 @@ export type Database = {
         Relationships: [];
       };
       job_working_owner_status: {
-        Row: { job_id: string; owner_id: string; full_name: string; joined_at: string };
+        Row: { job_id: string; owner_id: string; full_name: string; joined_at: string; owner_active: boolean };
         Relationships: [];
       };
       step_reopening_status: {

@@ -142,6 +142,8 @@ export default async function OwnerJobPage({ params }: PageProps<"/owner/jobs/[j
         allowEmployeesToJoin={job.allow_employees_to_join}
         team={detail.card.team}
         employees={employees}
+        workingOwners={detail.workingOwners}
+        currentUserId={user.id}
       />
 
       {isActiveStatus(job.status) && (

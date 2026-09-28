@@ -4,6 +4,7 @@ import { useState, useTransition, type FormEvent } from "react";
 import Dialog from "@/components/Dialog";
 import { fieldClass } from "@/components/fieldClass";
 import { AlertIcon, CheckIcon, PlusIcon, SpinnerIcon } from "@/components/Icons";
+import { WorkingOwnerRows } from "@/components/JobTeam";
 import { SectionHeading } from "@/components/PageHeading";
 import {
   addTeamMember,
@@ -14,7 +15,7 @@ import {
 } from "@/lib/actions/teams";
 import type { EmployeeOption } from "@/lib/jobs/queries";
 import { isActiveStatus, type JobStatus } from "@/lib/jobs/status";
-import type { TeamMember } from "@/lib/jobs/team";
+import type { TeamMember, WorkingOwner } from "@/lib/jobs/team";
 
 type Pending =
   | { kind: "remove"; member: TeamMember }
@@ -27,12 +28,16 @@ export default function OwnerTeamPanel({
   allowEmployeesToJoin,
   team,
   employees,
+  workingOwners = [],
+  currentUserId,
 }: {
   jobId: string;
   status: JobStatus;
   allowEmployeesToJoin: boolean;
   team: TeamMember[];
   employees: EmployeeOption[] | null;
+  workingOwners?: WorkingOwner[];
+  currentUserId?: string;
 }) {
   const [pending, startTransition] = useTransition();
   const [adding, setAdding] = useState(false);
@@ -74,7 +79,7 @@ export default function OwnerTeamPanel({
 
   return (
     <section aria-labelledby="owner-team" className="mt-8">
-      <SectionHeading id="owner-team" title="Team" count={team.length} />
+      <SectionHeading id="owner-team" title="Team" count={team.length + workingOwners.length} />
 
       {result.error && (
         <div role="alert" className="mb-3 flex items-start gap-3 rounded-2xl border border-red-400/40 bg-red-500/10 p-4">
@@ -153,6 +158,8 @@ export default function OwnerTeamPanel({
           ))}
         </ul>
       )}
+
+      <WorkingOwnerRows owners={workingOwners} currentUserId={currentUserId} />
 
       {canAdd && (
         <form onSubmit={submitAdd} className="mt-4 flex flex-col gap-3 rounded-3xl border border-charcoal-800 bg-charcoal-900 p-4">

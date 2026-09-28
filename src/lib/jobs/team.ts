@@ -23,6 +23,24 @@ export function teamLabel(member: TeamMember) {
   return member.role === "lead" ? `${name} (Lead)` : name;
 }
 
+// An owner working on the job (Owner/Working Member). Never the lead or an
+// employee member.
+export type WorkingOwner = { ownerId: string; name: string; active: boolean };
+
+export const WORKING_OWNER_LABEL = "Owner · Working Member";
+
+export function workingOwnerLabel(owner: WorkingOwner) {
+  return `${owner.name.trim() || "Owner"} (${WORKING_OWNER_LABEL})`;
+}
+
+// Everyone shown on a job card: lead first, then members, then working owners.
+export function teamNamesWithOwners(team: readonly TeamMember[], owners: readonly WorkingOwner[]) {
+  return [
+    ...sortTeam(team).map(teamLabel),
+    ...[...owners].sort((a, b) => a.name.localeCompare(b.name)).map(workingOwnerLabel),
+  ];
+}
+
 export type TeamAction =
   | { kind: "claim" }
   | { kind: "join" }
