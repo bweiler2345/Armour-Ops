@@ -1,14 +1,11 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import * as mockData from "@/lib/mock-data";
 import { isUuid, JOB_ERROR_MESSAGES, jobErrorMessage } from "./errors";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
 describe("live job data", () => {
-  it("has no mock jobs left", () => {
-    expect(Object.keys(mockData).sort()).toEqual(["trailers"]);
-  });
+  // The mock-data module is gone entirely: see src/lib/inventory/inventory.test.ts.
 
   it("builds job screens and cards only from database queries", () => {
     for (const file of [

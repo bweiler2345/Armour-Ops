@@ -5,7 +5,7 @@ Armour Ops is an internal, mobile-first web app for Armour Floors employees and 
 The app is organized into three areas, reachable from the bottom navigation bar:
 
 - **Jobs**: the employee's jobs and jobs available to claim.
-- **Pre-Week Setup**: will hold the weekly trailer inventory checklist.
+- **Pre-Week Setup**: each trailer's weekly inventory checklist.
 - **Account**: the signed-in user's name and role, plus sign-out.
 
 Owners also have an owner-only area at `/owner`, reachable from the Account screen.
@@ -82,7 +82,7 @@ src/
     (app)/                Signed-in screens with header and bottom navigation
       page.tsx            Sends each user to their home screen
       jobs/               Jobs screen
-      weekly-setup/       Pre-Week Setup screen
+      pre-week-setup/     Pre-Week Setup screens
       account/            Account screen and sign-out
       owner/              Owner-only area: dashboard, Team screen, workflow preview
     globals.css           Color palette and global styles
@@ -97,7 +97,6 @@ src/
     database.types.ts     Database types (hand-written until the Supabase CLI is set up)
     jobs/                 Job validation, statuses, Jobs screen sections, teams, queries (with tests)
     steps/                Step queries and entry validation (with tests)
-    mock-data.ts          Temporary sample trailers for Pre-Week Setup
   test/                   Test-only helpers (runs migrations in an in-process Postgres)
 supabase/
   migrations/             Database schema and security rules
@@ -124,7 +123,6 @@ What exists:
 - The owner can reset a forgotten password (a new one-time temporary password), and deactivate or reactivate accounts, each after a confirmation. Owners cannot deactivate their own account, and the database refuses to deactivate the last active owner.
 - Account history records creation, password resets, deactivation, and reactivation without any password.
 - Everyone can change their own password on the Account screen. Users with a temporary password see a reminder.
-- The Pre-Week Setup screen still uses fictional sample trailers from `src/lib/mock-data.ts` until Phase 10.
 
 **Phase 2: approved workflow — complete and verified against the live Supabase project.** Both migrations ran, and the owner confirmed the stored workflow at `/owner/workflow` matches the approved specification. Setup steps are in `docs/SUPABASE_SETUP.md`, step 9.
 
@@ -176,4 +174,11 @@ What exists:
 - Cards show progress, the current step, the team (including Working Owners), the last activity, anyone editing, reopened work, and upload problems, with links to the job and current step.
 - Search and filters (client, address, category, person, dates) survive the automatic refresh and page reloads.
 
-Not built yet: skipping, reordering, and editing standard job steps; role changes on the Team screen; Pre-Week Setup checklists; and deployment. See the implementation plan for the order.
+**Phase 10: Pre-Week Setup and trailer inventory — built; waiting for live verification.** Setup steps are in `docs/SUPABASE_SETUP.md`, step 17.
+
+- Trailer 1 and Trailer 2 share the approved inventory list. Each week (Monday to Sunday, Central time) every trailer gets its own snapshot of the list.
+- Employees count usable items with large controls; the database calculates Ready, Need More, Missing, and the exact shortage. Rags use Ready, Need More, or Missing.
+- Submitted weeks are read only; the owner can reopen one with a reason, and every submission is kept.
+- The owner manages trailers and the inventory list for future weeks, reviews each week and its history, and sees each trailer's state and combined shortages on the Owner Dashboard.
+
+Not built yet: skipping, reordering, and editing standard job steps; role changes on the Team screen; and deployment. See the implementation plan for the order.

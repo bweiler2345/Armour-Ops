@@ -44,6 +44,9 @@ type JobActivityType =
   | "owner_left_working_team";
 type ReferenceTarget = "workflow_step" | "library_item" | "job_step";
 type Row<T> = { Row: T; Insert: never; Update: never; Relationships: [] };
+type InventoryStatus = "ready" | "missing" | "need_more";
+type InventoryTracking = "count" | "status_only";
+type SetupState = "draft" | "submitted";
 type BlockKind = "ordered_list" | "reference_list" | "checklist";
 type AssignmentRole = "lead" | "member";
 type AssignmentMethod = "claimed" | "joined" | "added_by_owner" | "lead_change";
@@ -307,6 +310,28 @@ export type Database = {
         Update: never;
         Relationships: [];
       };
+      trailers: Row<{
+        id: string;
+        name: string;
+        position: number;
+        created_by: string | null;
+        created_at: string;
+        archived_at: string | null;
+        archived_by: string | null;
+      }>;
+      inventory_items: Row<{
+        id: string;
+        category: string;
+        category_position: number;
+        position: number;
+        label: string;
+        tracking: InventoryTracking;
+        target_quantity: number | null;
+        unit_label: string | null;
+        created_at: string;
+        updated_at: string;
+        archived_at: string | null;
+      }>;
       step_library_items: Row<{
         id: string;
         current_version: number;
@@ -605,6 +630,69 @@ export type Database = {
         };
         Relationships: [];
       };
+      weekly_setup_overview: {
+        Row: {
+          id: string;
+          trailer_id: string;
+          trailer_name: string;
+          trailer_archived_at: string | null;
+          week_start: string;
+          state: SetupState;
+          started_at: string;
+          submitted_at: string | null;
+          submitted_by_name: string | null;
+          restock_notes: string;
+          updated_at: string | null;
+          updated_by_name: string | null;
+          item_count: number;
+          assessed_count: number;
+          ready_count: number;
+          missing_count: number;
+          need_more_count: number;
+        };
+        Relationships: [];
+      };
+      weekly_setup_item_detail: {
+        Row: {
+          id: string;
+          setup_id: string;
+          source_item_id: string;
+          category: string;
+          category_position: number;
+          position: number;
+          label: string;
+          tracking: InventoryTracking;
+          target_quantity: number | null;
+          unit_label: string | null;
+          usable_quantity: number | null;
+          status: InventoryStatus | null;
+          shortage: number | null;
+          note: string;
+          updated_at: string | null;
+          updated_by_name: string | null;
+        };
+        Relationships: [];
+      };
+      weekly_setup_submission_history: {
+        Row: {
+          id: string;
+          setup_id: string;
+          trailer_id: string;
+          week_start: string;
+          submitted_at: string;
+          submitted_by_name: string | null;
+          ready_count: number;
+          missing_count: number;
+          need_more_count: number;
+          restock_notes: string;
+          items: Json;
+        };
+        Relationships: [];
+      };
+      weekly_setup_reopening_history: {
+        Row: { id: string; setup_id: string; submission_id: string; reason: string; reopened_at: string; reopened_by_name: string | null };
+        Relationships: [];
+      };
       job_working_owner_status: {
         Row: { job_id: string; owner_id: string; full_name: string; joined_at: string; owner_active: boolean };
         Relationships: [];
@@ -787,6 +875,28 @@ export type Database = {
       };
       complete_completion_item: { Args: { p_step: string }; Returns: "completed" | "already_completed" };
       mark_job_complete: { Args: { p_job: string }; Returns: "completed" | "already_complete" };
+      pre_week_start: { Args: { p_at?: string }; Returns: string };
+      ensure_weekly_setup: { Args: { p_trailer: string }; Returns: string };
+      save_setup_item: {
+        Args: { p_item: string; p_quantity: number | null; p_status: InventoryStatus | null; p_note: string };
+        Returns: { status: InventoryStatus | null; shortage: number | null; updated_at: string }[];
+      };
+      save_setup_restock_notes: { Args: { p_setup: string; p_notes: string }; Returns: undefined };
+      submit_weekly_setup: { Args: { p_setup: string }; Returns: "submitted" | "already_submitted" };
+      reopen_weekly_setup: { Args: { p_setup: string; p_reason: string }; Returns: undefined };
+      add_trailer: { Args: { p_name: string }; Returns: string };
+      rename_trailer: { Args: { p_trailer: string; p_name: string }; Returns: undefined };
+      archive_trailer: { Args: { p_trailer: string }; Returns: "archived" | "already_archived" };
+      add_inventory_item: {
+        Args: { p_category: string; p_label: string; p_tracking: InventoryTracking; p_target: number | null; p_unit: string | null };
+        Returns: string;
+      };
+      update_inventory_item: {
+        Args: { p_item: string; p_category: string; p_label: string; p_target: number | null; p_unit: string | null };
+        Returns: undefined;
+      };
+      archive_inventory_item: { Args: { p_item: string }; Returns: "archived" | "already_archived" };
+      move_inventory_item: { Args: { p_item: string; p_direction: number }; Returns: undefined };
       owner_dashboard: {
         Args: Record<never, never>;
         Returns: {

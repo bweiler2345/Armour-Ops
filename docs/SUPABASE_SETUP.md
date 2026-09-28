@@ -393,3 +393,35 @@ Use a few fictional jobs in different states: one Scheduled, one Available, one 
 10. **Search and filters.** Search part of a client name or address, choose a category tile, choose a person under **Anyone assigned** (Working Owners are included), and set From and To dates. Wait 30 seconds: the automatic refresh keeps your filters. Reload the page: the filters are still there. **Clear filters** resets them. A filter with no matches says so.
 11. **Out of date.** Turn off the computer's Wi-Fi for two minutes: the "Last updated" line warns that the page may be out of date. Turn it back on; it refreshes.
 12. **Owner only.** As an employee, visit `/owner`: you're sent to Jobs. Nothing on the dashboard shows an email address or a link to a file.
+
+## 17. Phase 10: Pre-Week Setup and trailer inventory
+
+No Cloudflare or R2 changes are needed.
+
+### 17.1 Run the Phase 10 database update
+
+The Phase 9 file (step 16.1) must already have been run. In **SQL Editor**, run `supabase/migrations/20260927120000_pre_week_setup.sql` (new query, paste the whole file, **Run**). It should finish with "Success. No rows returned." It creates Trailer 1, Trailer 2, and the approved 48-item list. Restart `npm run dev` afterwards.
+
+### 17.2 Try it
+
+You need the owner, two active test employees (A and B), and a phone. Weeks run Monday to Sunday, Central time.
+
+**Trailers and the list**
+
+1. As the owner, open **Owner Dashboard › Pre-Week Setup details › Inventory list**. The four approved categories (Core equipment, Prep tools, Mixing and application, Materials and consumables) list every item with its target, including **Full plywood sheet** (1 sheet), **Quarter-board piece** (1 piece), and **Rags stocked** (Ready / Need More / Missing, no count). Check the targets against the spec.
+2. **Trailers:** Trailer 1 and Trailer 2 are listed. Rename Trailer 2 and rename it back. Add "Trailer 3", then archive it (confirm). It moves to Archived.
+
+**Employee checklist**
+
+3. As A on the phone, tap **Pre-Week Setup** in the bottom bar. Both trailers show "Not started" with the week range. Open **Trailer 1**: the checklist appears, grouped by category, with the progress bar at the top.
+4. **Counting:** for **3-inch brushes** (target 30), tap + to 12: it shows **Need More** and **Need 18 more brushes**. Enter 0: **Missing** and **Need 30 more brushes**. Enter 30 and then 31: **Ready**, no shortage. From an empty count, − enters 0. Letters or negative numbers aren't accepted.
+5. **Rags:** tap Ready, Need More, or Missing. Add a note on any item.
+6. **Saving:** the top line says "All changes saved". Leave and reopen the trailer, or open it as B on another device: the counts are there. Turn on Airplane Mode and change a count: it says the change isn't saved and offers **Retry**; the number you entered stays. Turn Airplane Mode off and tap Retry.
+7. **Submit:** until every item is checked, the button says how many are left. When all are checked, **Review and Submit** shows the Ready, Need More, and Missing counts and every shortage; **Keep Checking** goes back. Submit. The page says who submitted and when, and everything is read only.
+
+**Owner review**
+
+8. The Owner Dashboard's **Pre-Week Setup** section shows each trailer's state (Not started, Draft, Submitted), progress, and Need More and Missing counts, with a "not submitted" badge while any trailer is unsubmitted. **Shortages this week** lists each item's shortage per trailer, with a combined total when both trailers need the same counted item.
+9. Open the submitted trailer: every item shows its count, target, status, shortage, note, and who changed it and when, plus the submission. Select **Reopen**; the confirm button stays disabled until you enter a reason. Reopen. A can change counts and submit again; the page then lists both submissions and the reopening with its reason.
+10. **Future weeks only:** in **Inventory list**, change the target for Pencils. This week's checklists still show the old target; weeks started later use the new one. **History** lists every week for each trailer, and **All trailers** or a trailer name filters it.
+11. **Access:** as an employee, visiting `/owner/pre-week-setup` sends you to Jobs, and there are no owner controls. As the owner, the trailer checklist is read only (employees fill it in). No email addresses appear anywhere.

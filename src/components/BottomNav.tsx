@@ -6,7 +6,7 @@ import { AccountIcon, JobsIcon, TrailerIcon } from "@/components/Icons";
 
 const items = [
   { href: "/jobs", label: "Jobs", Icon: JobsIcon },
-  { href: "/weekly-setup", label: "Weekly Setup", Icon: TrailerIcon },
+  { href: "/pre-week-setup", label: "Pre-Week Setup", Icon: TrailerIcon },
   { href: "/account", label: "Account", Icon: AccountIcon },
 ];
 
